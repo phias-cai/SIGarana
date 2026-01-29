@@ -1,5 +1,10 @@
+// src/context/AuthContext.jsx - VERSIÓN OPTIMIZADA SIN JOINS
+// ✅ Queries simples y rápidas sin JOINs
+// ✅ Timeouts más largos (15 segundos)
+// ✅ Carga en paralelo
+
 import { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, ROLES } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext({});
 
@@ -11,70 +16,132 @@ export const useAuth = () => {
   return context;
 };
 
-export function AuthProvider({ children }) {
+export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // ==========================================
-  // 🔄 FUNCIONES AUXILIARES (REALES - SUPABASE)
+  // 🔧 UTILIDAD: Promise con timeout
+  // ==========================================
+  const withTimeout = (promise, timeoutMs = 15000) => {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Query timeout')), timeoutMs)
+      ),
+    ]);
+  };
+
+  // ==========================================
+  // 🔍 FETCH FUNCTIONS - SIN JOINS
   // ==========================================
 
   /**
-   * Obtener perfil REAL desde Supabase
+   * Obtener perfil del usuario (SIN JOIN)
+   * ✅ Query más simple y rápida
    */
   const fetchUserProfile = async (userId) => {
-    console.log('🔍 [REAL] Loading profile for user ID:', userId);
-
     try {
-      const { data, error } = await supabase
-        .from('profile')
-        .select(`
-          *,
-          department:department_id (
-            id,
-            name,
-            code
-          )
-        `)
-        .eq('id', userId)
-        .single();
+      console.log('🔄 fetchUserProfile for:', userId);
+
+      // Query simple sin JOIN
+      const { data: profileData, error } = await withTimeout(
+        supabase
+          .from('profile')
+          .select('*')
+          .eq('id', userId)
+          .single(),
+        15000
+      );
 
       if (error) throw error;
 
-      console.log('✅ [REAL] Profile loaded:', data);
-      return data;
+      console.log('✅ Profile loaded:', profileData);
+
+      // Si tiene department_id, cargarlo por separado
+      if (profileData.department_id) {
+        try {
+          const { data: deptData } = await withTimeout(
+            supabase
+              .from('department')
+              .select('id, name, code')
+              .eq('id', profileData.department_id)
+              .single(),
+            10000
+          );
+
+          if (deptData) {
+            profileData.department = deptData;
+            console.log('✅ Department loaded:', deptData.name);
+          }
+        } catch (deptError) {
+          console.warn('⚠️ Could not load department:', deptError.message);
+          // No es crítico, continuar sin departamento
+        }
+      }
+
+      return profileData;
     } catch (error) {
-      console.error('❌ Error loading profile:', error);
+      console.error('❌ Error fetching profile:', error.message);
       return null;
     }
   };
 
   /**
-   * Obtener permisos REALES desde Supabase
+   * Obtener permisos del usuario (SIN JOIN)
+   * ✅ Carga en 2 pasos: IDs primero, luego códigos
    */
   const fetchUserPermissions = async (userId) => {
-    console.log('🔍 [REAL] Loading permissions for user ID:', userId);
-
     try {
-      // Usar la función RPC que ya existe
-      const { data, error } = await supabase.rpc('get_user_permissions', {
-        user_id: userId
-      });
+      console.log('🔄 fetchUserPermissions for:', userId);
 
-      if (error) throw error;
+      // Paso 1: Obtener IDs de permisos (query simple)
+      const { data: userPerms, error: userPermsError } = await withTimeout(
+        supabase
+          .from('user_permission')
+          .select('permission_id')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .or('expires_at.is.null,expires_at.gt.now()'),
+        15000
+      );
 
-      console.log('✅ [REAL] Permissions loaded:', data);
-      return data || [];
+      if (userPermsError) throw userPermsError;
+
+      if (!userPerms || userPerms.length === 0) {
+        console.log('ℹ️ No permissions found for user');
+        return [];
+      }
+
+      const permissionIds = userPerms.map(p => p.permission_id).filter(Boolean);
+      console.log(`✅ Found ${permissionIds.length} permission IDs`);
+
+      // Paso 2: Obtener códigos de permisos
+      const { data: permissions, error: permsError } = await withTimeout(
+        supabase
+          .from('permission')
+          .select('code')
+          .in('id', permissionIds),
+        10000
+      );
+
+      if (permsError) throw permsError;
+
+      const permissionCodes = permissions?.map(p => p.code).filter(Boolean) || [];
+      console.log('✅ Permissions loaded:', permissionCodes.length, 'total');
+      
+      return permissionCodes;
     } catch (error) {
-      console.error('❌ Error loading permissions:', error);
+      console.error('❌ Error fetching permissions:', error.message);
       return [];
     }
   };
 
   /**
    * Cargar datos del usuario
+   * ✅ SIEMPRE resuelve el loading
    */
   const loadUserData = async (authUser) => {
     console.log('🔄 loadUserData for:', authUser?.email);
@@ -88,14 +155,21 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const userProfile = await fetchUserProfile(authUser.id);
-      const userPermissions = await fetchUserPermissions(authUser.id);
+      // Cargar perfil y permisos en paralelo
+      const [userProfile, userPermissions] = await Promise.all([
+        fetchUserProfile(authUser.id),
+        fetchUserPermissions(authUser.id),
+      ]);
 
       setUser(authUser);
       setProfile(userProfile);
       setPermissions(userPermissions);
+
+      console.log('✅ User data loaded successfully');
+      console.log('   Profile:', userProfile?.full_name, '| Role:', userProfile?.role);
+      console.log('   Permissions:', userPermissions.length, 'total');
     } catch (error) {
-      console.error('❌ Error loading user data:', error);
+      console.error('❌ Unexpected error in loadUserData:', error);
       setUser(authUser);
       setProfile(null);
       setPermissions([]);
@@ -124,24 +198,28 @@ export function AuthProvider({ children }) {
       return { data, error: null };
     } catch (error) {
       console.error('❌ Login error:', error);
-      return { data: null, error };
-    } finally {
       setLoading(false);
+      return { data: null, error };
     }
   };
 
   const logout = async () => {
     try {
       console.log('🚪 Logging out...');
+      setLoading(true);
+
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
+
       setUser(null);
       setProfile(null);
       setPermissions([]);
+
       console.log('✅ Logged out');
     } catch (error) {
       console.error('❌ Logout error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -153,16 +231,13 @@ export function AuthProvider({ children }) {
   const isGerencia = profile?.role === 'gerencia';
 
   const hasPermission = (permissionCode) => {
-    // Admin tiene acceso a todo
     if (isAdmin) return true;
-    
-    // Verificar si tiene el permiso específico
     return permissions.includes(permissionCode);
   };
 
   const hasAnyPermission = (permissionCodes) => {
     if (isAdmin) return true;
-    return permissionCodes.some(code => permissions.includes(code));
+    return permissionCodes.some((code) => permissions.includes(code));
   };
 
   // ==========================================
@@ -170,22 +245,61 @@ export function AuthProvider({ children }) {
   // ==========================================
 
   useEffect(() => {
-    // Obtener sesión actual
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        loadUserData(session.user);
-      } else {
-        setLoading(false);
-      }
-    });
+    console.log('🚀 AuthContext: Initializing...');
 
-    // Escuchar cambios de autenticación
+    let mounted = true;
+
+    const initialize = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (!mounted) return;
+
+        if (error) {
+          console.error('❌ Error getting initial session:', error);
+          setLoading(false);
+          return;
+        }
+
+        if (session?.user) {
+          console.log('✅ Initial session found:', session.user.email);
+          await loadUserData(session.user);
+        } else {
+          console.log('ℹ️ No initial session');
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('❌ Error initializing:', error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initialize();
+
+    // Listener de cambios de autenticación
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔔 Auth event:', event);
-      
-      if (session?.user) {
+      if (!mounted) return;
+
+      console.log('🔔 Auth event:', event, session?.user?.email || 'no user');
+
+      if (event === 'SIGNED_IN' && session?.user) {
+        await loadUserData(session.user);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setProfile(null);
+        setPermissions([]);
+        setLoading(false);
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        console.log('🔄 Token refreshed');
+        // Solo recargar si cambió el usuario
+        if (user?.id !== session.user.id) {
+          await loadUserData(session.user);
+        }
+      } else if (session?.user) {
         await loadUserData(session.user);
       } else {
         setUser(null);
@@ -195,7 +309,19 @@ export function AuthProvider({ children }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Timeout de seguridad (20 segundos)
+    const timeoutId = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('⚠️ Loading timeout - forcing loading = false');
+        setLoading(false);
+      }
+    }, 20000);
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   // ==========================================
@@ -216,4 +342,4 @@ export function AuthProvider({ children }) {
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
+};

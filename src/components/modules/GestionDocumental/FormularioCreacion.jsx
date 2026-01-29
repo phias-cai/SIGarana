@@ -1,50 +1,61 @@
-import { useState } from 'react';
+// =====================================================
+// COMPONENTE: FormularioCreacion.jsx COMPLETO
+// =====================================================
+// Versión con plantillas y logo indecon.png
+// =====================================================
+
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
-import { Button } from '@/app/components/ui/button';
-import { Input } from '@/app/components/ui/input';
-import { Label } from '@/app/components/ui/label';
-import { Textarea } from '@/app/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
-import { Alert, AlertDescription } from '@/app/components/ui/alert';
-import { Checkbox } from '@/app/components/ui/checkbox';
-import { Upload, X, FileText, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { useDocumentCode } from '@/hooks/useDocumentCode';
+import { generateWordTemplate } from '../../../utils/generateWordTemplate';
+import { generateExcelTemplate } from '../../../utils/generateExcelTemplate';
+import { Button } from '../../../app/components/ui/button';
+import { Input } from '../../../app/components/ui/input';
+import { Label } from '../../../app/components/ui/label';
+import { Textarea } from '../../../app/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../app/components/ui/card';
+import { Alert, AlertDescription } from '../../../app/components/ui/alert';
+import { Checkbox } from '../../../app/components/ui/checkbox';
+import { Upload, X, FileText, AlertCircle, CheckCircle2, Info, Sparkles, Download } from 'lucide-react';
 
 export default function FormularioCreacion({ 
   documentTypes = [], 
   processes = [], 
-  onSuccess 
+  onSuccess,
+  onCancel
 }) {
   const { user } = useAuth();
+  const { getNextCode, checkCodeExists, validateCodeFormat } = useDocumentCode();
+  
+  // Estado para controlar si es formato nuevo
+  const [isNewFormat, setIsNewFormat] = useState(false);
+  const [autoCode, setAutoCode] = useState('');
+  const [generatingCode, setGeneratingCode] = useState(false);
+  
+  // Estado para descarga de plantilla
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [templateError, setTemplateError] = useState(null);
   
   // Estado del formulario
   const [formData, setFormData] = useState({
-    // Información Básica
     code: '',
     name: '',
     objective: '',
     scope: '',
     document_type_id: '',
     process_id: '',
-    
-    // Ubicación y Almacenamiento
     storage_location: '',
     file_type_magnetic: true,
     file_type_physical: false,
-    
-    // Retención
     retention_central: '',
     retention_management: false,
-    
-    // Disposición Final
     disposition_total_conservation: false,
     disposition_selection: false,
     disposition_elimination: false,
-    
-    // ⭐ CONTROL DE CAMBIOS - EDITABLES (Datos Históricos)
-    version: '1',  // Por defecto 1, pero el usuario puede cambiarlo
-    change_date: new Date().toISOString().split('T')[0], // Fecha actual por defecto
-    change_reason: '', // Usuario puede ingresar motivo histórico
+    version: '1',
+    change_date: new Date().toISOString().split('T')[0],
+    change_reason: '',
   });
   
   const [file, setFile] = useState(null);
@@ -53,17 +64,116 @@ export default function FormularioCreacion({
   const [success, setSuccess] = useState(false);
   const [codeError, setCodeError] = useState('');
 
+  // Efecto para generar código automático
+  useEffect(() => {
+    if (isNewFormat && formData.document_type_id && formData.process_id) {
+      generateNextCode();
+    }
+  }, [isNewFormat, formData.document_type_id, formData.process_id]);
+
+  // Generar siguiente código
+  const generateNextCode = async () => {
+    try {
+      setGeneratingCode(true);
+      setCodeError('');
+
+      const selectedType = documentTypes.find(t => t.id === formData.document_type_id);
+      if (!selectedType) return;
+
+      const selectedProcess = processes.find(p => p.id === formData.process_id);
+      if (!selectedProcess || !selectedProcess.code) return;
+
+      const typeCode = selectedType.code;
+      const deptCode = selectedProcess.code;
+
+      const nextCode = await getNextCode(typeCode, deptCode);
+      
+      if (nextCode) {
+        setAutoCode(nextCode);
+        setFormData(prev => ({ ...prev, code: nextCode }));
+        setCodeError('');
+      }
+
+    } catch (err) {
+      console.error('Error generando código:', err);
+      setCodeError('No se pudo generar el código automático');
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
+  // Descargar plantilla con logo
+  const handleDownloadTemplate = async () => {
+    try {
+      setDownloadingTemplate(true);
+      setTemplateError(null);
+
+      if (!autoCode || !formData.name) {
+        throw new Error('Código y nombre son requeridos para generar la plantilla');
+      }
+
+      // URL del logo indecon.png en Supabase
+      const logoUrl = 'https://wnsnymxabmxswnpcpvoj.supabase.co/storage/v1/object/public/assets/indecon.png';
+
+      // Determinar tipo de archivo
+      const typeCode = autoCode.split('-')[0];
+      const isExcel = typeCode === 'RE'; // Registros son Excel
+
+      // Generar plantilla
+      if (isExcel) {
+        await generateExcelTemplate({
+          code: autoCode,
+          name: formData.name,
+          version: formData.version || '1',
+          logoUrl: logoUrl,
+        });
+      } else {
+        await generateWordTemplate({
+          code: autoCode,
+          name: formData.name,
+          version: formData.version || '1',
+          logoUrl: logoUrl,
+        });
+      }
+
+      console.log('✅ Plantilla descargada exitosamente');
+
+    } catch (err) {
+      console.error('Error descargando plantilla:', err);
+      setTemplateError(err.message);
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
+  // Toggle formato nuevo
+  const handleNewFormatToggle = (checked) => {
+    setIsNewFormat(checked);
+    
+    if (checked) {
+      setFormData(prev => ({ ...prev, code: '' }));
+      if (formData.document_type_id && formData.process_id) {
+        generateNextCode();
+      }
+    } else {
+      setAutoCode('');
+      setFormData(prev => ({ ...prev, code: '' }));
+    }
+  };
+
   // Validación de código
   const validateCode = (code) => {
-    const pattern = /^[A-Z]{2}-[A-Z]{2,3}-\d{2}$/;
     if (!code) {
       setCodeError('');
       return false;
     }
-    if (!pattern.test(code)) {
-      setCodeError('Formato inválido. Use: XX-YY-## (ej: PR-GC-01)');
+
+    const validation = validateCodeFormat(code);
+    if (!validation.valid) {
+      setCodeError(validation.message);
       return false;
     }
+
     setCodeError('');
     return true;
   };
@@ -71,7 +181,7 @@ export default function FormularioCreacion({
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     
-    if (name === 'code') {
+    if (name === 'code' && !isNewFormat) {
       const upperValue = value.toUpperCase();
       setFormData(prev => ({ ...prev, [name]: upperValue }));
       validateCode(upperValue);
@@ -106,7 +216,6 @@ export default function FormularioCreacion({
     setError(null);
 
     try {
-      // Validaciones
       if (!validateCode(formData.code)) {
         throw new Error('Código de documento inválido');
       }
@@ -119,15 +228,22 @@ export default function FormularioCreacion({
         throw new Error('Debe seleccionar un archivo');
       }
 
+      const codeExists = await checkCodeExists(formData.code);
+      if (codeExists) {
+        throw new Error(`El código ${formData.code} ya existe`);
+      }
+
       const version = parseInt(formData.version);
       if (isNaN(version) || version < 1) {
-        throw new Error('La versión debe ser un número mayor o igual a 1');
+        throw new Error('La versión debe ser mayor o igual a 1');
       }
 
       // Subir archivo
       const fileExt = file.name.split('.').pop();
       const fileName = `${formData.code}_v${version}.${fileExt}`;
-      const filePath = `${formData.document_type_id}/${fileName}`;
+      const selectedType = documentTypes.find(t => t.id === formData.document_type_id);
+      const folderName = selectedType?.code || 'general';
+      const filePath = `${folderName}/${fileName}`;
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('documents')
@@ -138,10 +254,13 @@ export default function FormularioCreacion({
 
       if (uploadError) {
         if (uploadError.message.includes('already exists')) {
-          throw new Error('Ya existe un documento con este código y versión');
+          throw new Error('Ya existe un archivo con este código y versión');
         }
         throw uploadError;
       }
+
+      // Determinar status
+      const documentStatus = isNewFormat ? 'pending_approval' : 'published';
 
       // Crear documento
       const { data: document, error: dbError } = await supabase
@@ -155,50 +274,36 @@ export default function FormularioCreacion({
           process_id: formData.process_id,
           file_path: uploadData.path,
           version: version,
-          status: 'published',
-          
-          // Ubicación y almacenamiento
+          status: documentStatus,
           storage_location: formData.storage_location || null,
           file_type_magnetic: formData.file_type_magnetic,
           file_type_physical: formData.file_type_physical,
-          
-          // Retención
           retention_central: formData.retention_central ? parseInt(formData.retention_central) : null,
           retention_management: formData.retention_management,
-          
-          // Disposición
           disposition_total_conservation: formData.disposition_total_conservation,
           disposition_selection: formData.disposition_selection,
           disposition_elimination: formData.disposition_elimination,
-          
-          // ⭐ Control de cambios (datos históricos)
-          change_date: formData.change_date || null,
-          change_reason: formData.change_reason || null,
-          
-          created_by: user?.id,
-          updated_by: user?.id
+          change_date: formData.change_date || new Date().toISOString(),
+          change_reason: formData.change_reason || (isNewFormat ? 'Documento nuevo creado' : 'Documento existente registrado'),
+          created_by: user?.id
         })
         .select()
         .single();
 
       if (dbError) throw dbError;
 
-      // Crear versión inicial
-      const { error: versionError } = await supabase
-        .from('document_version')
-        .insert({
-          document_id: document.id,
-          version_number: version,
-          file_path: uploadData.path,
-          changes: formData.change_reason || `Versión ${version} - Documento centralizado`,
-          change_reason: formData.change_reason || null,
-          created_by: user?.id
-        });
-
-      if (versionError) throw versionError;
-
+      console.log('✅ Documento creado:', document);
       setSuccess(true);
       
+      if (onSuccess) {
+        onSuccess({
+          ...document,
+          isNewFormat,
+          needsApproval: isNewFormat
+        });
+      }
+
+      // Resetear formulario
       setTimeout(() => {
         setFormData({
           code: '',
@@ -220,12 +325,13 @@ export default function FormularioCreacion({
           change_reason: '',
         });
         setFile(null);
+        setIsNewFormat(false);
+        setAutoCode('');
         setSuccess(false);
-        if (onSuccess) onSuccess();
-      }, 2000);
+      }, 3000);
 
     } catch (err) {
-      console.error('Error al crear documento:', err);
+      console.error('❌ Error al crear documento:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -234,7 +340,7 @@ export default function FormularioCreacion({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Mensajes */}
+      {/* Alertas */}
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -243,21 +349,148 @@ export default function FormularioCreacion({
       )}
 
       {success && (
-        <Alert className="border-green-200 bg-green-50">
+        <Alert className="border-green-500 bg-green-50">
           <CheckCircle2 className="h-4 w-4 text-green-600" />
           <AlertDescription className="text-green-800">
-            ¡Documento creado exitosamente!
+            {isNewFormat 
+              ? `¡Formato nuevo creado! Código ${formData.code} enviado a gerencia para aprobación.`
+              : `¡Documento creado exitosamente! Código ${formData.code} publicado.`
+            }
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Card de Tipo de Formato */}
+      <Card className="border-2 border-purple-300 bg-purple-50">
+        <CardHeader>
+          <CardTitle className="text-purple-900 flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            Tipo de Formato
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <Checkbox
+              id="isNewFormat"
+              checked={isNewFormat}
+              onCheckedChange={handleNewFormatToggle}
+            />
+            <div className="flex-1">
+              <Label htmlFor="isNewFormat" className="text-base font-medium cursor-pointer">
+                Es un formato nuevo
+              </Label>
+              <p className="text-sm text-gray-600 mt-1">
+                {isNewFormat 
+                  ? '✅ El código se generará automáticamente y requerirá aprobación'
+                  : 'El documento ya existe y será publicado inmediatamente'
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Preview del código + BOTÓN PLANTILLA */}
+          {isNewFormat && autoCode && (
+            <div className="space-y-3">
+              <Alert className="border-blue-500 bg-blue-50">
+                <Info className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-900">
+                  <span className="font-semibold">Código que se asignará:</span>
+                  <br />
+                  <code className="text-lg font-mono bg-white px-2 py-1 rounded mt-1 inline-block">
+                    {autoCode}
+                  </code>
+                </AlertDescription>
+              </Alert>
+
+              {/* BOTÓN DESCARGAR PLANTILLA */}
+              <Button
+                type="button"
+                onClick={handleDownloadTemplate}
+                disabled={downloadingTemplate || !formData.name}
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+              >
+                {downloadingTemplate ? (
+                  <>
+                    <Download className="mr-2 h-4 w-4 animate-bounce" />
+                    Generando plantilla...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    📥 Descargar Plantilla con Logo Indecon
+                  </>
+                )}
+              </Button>
+
+              <p className="text-xs text-gray-600 text-center">
+                📄 Descarga la plantilla con el código {autoCode} y logo prellenados.
+                <br />
+                Complétala offline y súbela aquí.
+              </p>
+
+              {templateError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">{templateError}</AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Información Básica */}
       <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
         <CardHeader>
           <CardTitle style={{ color: '#2e5244' }}>Información Básica</CardTitle>
-          <CardDescription>Datos principales del documento</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Tipo y Proceso */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="document_type_id">
+                Tipo de Documento <span className="text-red-500">*</span>
+              </Label>
+              <select
+                id="document_type_id"
+                name="document_type_id"
+                value={formData.document_type_id}
+                onChange={handleChange}
+                className="w-full border rounded-md px-3 py-2"
+                required
+              >
+                <option value="">Seleccione...</option>
+                {documentTypes.map(type => (
+                  <option key={type.id} value={type.id}>
+                    {type.code} - {type.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <Label htmlFor="process_id">
+                Proceso / Departamento <span className="text-red-500">*</span>
+              </Label>
+              <select
+                id="process_id"
+                name="process_id"
+                value={formData.process_id}
+                onChange={handleChange}
+                className="w-full border rounded-md px-3 py-2"
+                required
+              >
+                <option value="">Seleccione...</option>
+                {processes.map(process => (
+                  <option key={process.id} value={process.id}>
+                    {process.code} - {process.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Código */}
           <div>
             <Label htmlFor="code">
               Código del Documento <span className="text-red-500">*</span>
@@ -269,17 +502,23 @@ export default function FormularioCreacion({
               onChange={handleChange}
               placeholder="Ej: PR-GC-01"
               required
+              disabled={isNewFormat}
               className={codeError ? 'border-red-500' : ''}
             />
             {codeError ? (
               <p className="text-sm text-red-500 mt-1">{codeError}</p>
+            ) : isNewFormat ? (
+              <p className="text-xs text-blue-600 mt-1">
+                ✨ Código generado automáticamente
+              </p>
             ) : (
               <p className="text-xs text-gray-500 mt-1">
-                Formato: XX-YY-## (2 letras tipo - 2-3 letras proceso - 2 números)
+                Formato: XX-YY-## (ej: PR-GC-01)
               </p>
             )}
           </div>
 
+          {/* Nombre */}
           <div>
             <Label htmlFor="name">
               Nombre del Documento <span className="text-red-500">*</span>
@@ -294,58 +533,7 @@ export default function FormularioCreacion({
             />
           </div>
 
-          <div>
-            <Label htmlFor="document_type_id">
-              Tipo de Documento <span className="text-red-500">*</span>
-            </Label>
-            <select
-              id="document_type_id"
-              name="document_type_id"
-              value={formData.document_type_id}
-              onChange={handleChange}
-              className="w-full border rounded-md px-3 py-2"
-              required
-            >
-              <option value="">Seleccione un tipo</option>
-              {documentTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.code} - {type.name}
-                </option>
-              ))}
-            </select>
-            {documentTypes.length > 0 && (
-              <p className="text-xs text-gray-500 mt-1">
-                {documentTypes.length} tipos disponibles
-              </p>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="process_id">
-              Proceso <span className="text-red-500">*</span>
-            </Label>
-            <select
-              id="process_id"
-              name="process_id"
-              value={formData.process_id}
-              onChange={handleChange}
-              className="w-full border rounded-md px-3 py-2"
-              required
-            >
-              <option value="">Seleccione un proceso</option>
-              {processes.map((process) => (
-                <option key={process.id} value={process.id}>
-                  {process.name}
-                </option>
-              ))}
-            </select>
-            {processes.length > 0 && (
-              <p className="text-xs text-gray-500 mt-1">
-                {processes.length} procesos disponibles
-              </p>
-            )}
-          </div>
-
+          {/* Objetivo */}
           <div>
             <Label htmlFor="objective">Objetivo</Label>
             <Textarea
@@ -353,11 +541,12 @@ export default function FormularioCreacion({
               name="objective"
               value={formData.objective}
               onChange={handleChange}
-              rows={3}
-              placeholder="Describa el objetivo del documento"
+              placeholder="Objetivo del documento..."
+              rows={2}
             />
           </div>
 
+          {/* Alcance */}
           <div>
             <Label htmlFor="scope">Alcance</Label>
             <Textarea
@@ -365,51 +554,58 @@ export default function FormularioCreacion({
               name="scope"
               value={formData.scope}
               onChange={handleChange}
-              rows={3}
-              placeholder="Describa el alcance del documento"
+              placeholder="Alcance del documento..."
+              rows={2}
             />
           </div>
         </CardContent>
       </Card>
 
       {/* Archivo */}
-      <Card className="border-2" style={{ borderColor: '#6f7b2c' }}>
+      <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
         <CardHeader>
-          <CardTitle style={{ color: '#2e5244' }}>Archivo del Documento</CardTitle>
-          <CardDescription>Seleccione el archivo PDF, Word o Excel</CardDescription>
+          <CardTitle style={{ color: '#2e5244' }}>
+            Archivo del Documento <span className="text-red-500">*</span>
+          </CardTitle>
+          <CardDescription>
+            {isNewFormat 
+              ? 'Sube el archivo de la plantilla que completaste'
+              : 'Sube el documento existente'
+            }
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {!file ? (
-            <div className="border-2 border-dashed rounded-lg p-8 text-center"
-                 style={{ borderColor: '#dedecc' }}>
-              <Upload className="mx-auto h-12 w-12 mb-4" style={{ color: '#6dbd96' }} />
-              <Label htmlFor="file-upload" className="cursor-pointer">
-                <span className="text-blue-600 hover:underline">Click para seleccionar archivo</span>
-                <Input
-                  id="file-upload"
-                  type="file"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx"
-                />
-              </Label>
-              <p className="text-xs text-gray-500 mt-2">
-                Formatos: PDF, Word, Excel (máx. 10MB)
-              </p>
-            </div>
+            <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+              <Upload className="h-8 w-8 text-gray-400 mb-2" />
+              <span className="text-sm text-gray-600">
+                Click para seleccionar archivo
+              </span>
+              <span className="text-xs text-gray-500 mt-1">
+                PDF, Word o Excel - Máximo 10MB
+              </span>
+              <input
+                type="file"
+                onChange={handleFileChange}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.xls,.xlsx"
+              />
+            </label>
           ) : (
-            <div className="flex items-center justify-between p-4 border-2 rounded-lg"
-                 style={{ borderColor: '#6dbd96' }}>
-              <div className="flex items-center space-x-3">
-                <FileText className="h-8 w-8" style={{ color: '#6dbd96' }} />
-                <div>
-                  <p className="text-sm font-medium">{file.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {(file.size / 1024).toFixed(2)} KB
-                  </p>
-                </div>
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <FileText className="h-8 w-8 text-blue-600" />
+              <div className="flex-1">
+                <p className="font-medium">{file.name}</p>
+                <p className="text-sm text-gray-600">
+                  {(file.size / 1024).toFixed(2)} KB
+                </p>
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={removeFile}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={removeFile}
+              >
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -417,27 +613,144 @@ export default function FormularioCreacion({
         </CardContent>
       </Card>
 
-      {/* ⭐ CONTROL DE CAMBIOS - AHORA EDITABLES */}
-      <Card className="border-2 bg-yellow-50" style={{ borderColor: '#6dbd96' }}>
+      {/* Información Adicional del Excel */}
+      <Card className="border-2" style={{ borderColor: '#6f7b2c' }}>
         <CardHeader>
-          <div className="flex items-center space-x-2">
-            <Info className="h-5 w-5 text-yellow-600" />
-            <CardTitle style={{ color: '#2e5244' }}>Control de Cambios</CardTitle>
+          <CardTitle style={{ color: '#2e5244' }}>Información Adicional</CardTitle>
+          <CardDescription>Campos del listado maestro</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Ubicación */}
+          <div>
+            <Label htmlFor="storage_location">Ubicación de Almacenamiento</Label>
+            <Input
+              id="storage_location"
+              name="storage_location"
+              value={formData.storage_location}
+              onChange={handleChange}
+              placeholder="Ej: Servidor, Archivador A, etc."
+            />
           </div>
+
+          {/* Tipo de Archivo */}
+          <div className="space-y-2">
+            <Label>Tipo de Archivo</Label>
+            <div className="flex gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="file_type_magnetic"
+                  name="file_type_magnetic"
+                  checked={formData.file_type_magnetic}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, file_type_magnetic: checked }))
+                  }
+                />
+                <Label htmlFor="file_type_magnetic" className="cursor-pointer">
+                  Magnético (Digital)
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="file_type_physical"
+                  name="file_type_physical"
+                  checked={formData.file_type_physical}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, file_type_physical: checked }))
+                  }
+                />
+                <Label htmlFor="file_type_physical" className="cursor-pointer">
+                  Físico (Papel)
+                </Label>
+              </div>
+            </div>
+          </div>
+
+          {/* Retención */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="retention_central">Tiempo Retención Central (años)</Label>
+              <Input
+                id="retention_central"
+                name="retention_central"
+                type="number"
+                min="0"
+                value={formData.retention_central}
+                onChange={handleChange}
+                placeholder="Ej: 5"
+              />
+            </div>
+            <div className="flex items-center space-x-2 mt-6">
+              <Checkbox
+                id="retention_management"
+                name="retention_management"
+                checked={formData.retention_management}
+                onCheckedChange={(checked) => 
+                  setFormData(prev => ({ ...prev, retention_management: checked }))
+                }
+              />
+              <Label htmlFor="retention_management" className="cursor-pointer">
+                Retención en Gestión
+              </Label>
+            </div>
+          </div>
+
+          {/* Disposición */}
+          <div className="space-y-2">
+            <Label>Disposición Final</Label>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="disposition_total_conservation"
+                  name="disposition_total_conservation"
+                  checked={formData.disposition_total_conservation}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, disposition_total_conservation: checked }))
+                  }
+                />
+                <Label htmlFor="disposition_total_conservation" className="cursor-pointer">
+                  Conservación Total
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="disposition_selection"
+                  name="disposition_selection"
+                  checked={formData.disposition_selection}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, disposition_selection: checked }))
+                  }
+                />
+                <Label htmlFor="disposition_selection" className="cursor-pointer">
+                  Selección
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="disposition_elimination"
+                  name="disposition_elimination"
+                  checked={formData.disposition_elimination}
+                  onCheckedChange={(checked) => 
+                    setFormData(prev => ({ ...prev, disposition_elimination: checked }))
+                  }
+                />
+                <Label htmlFor="disposition_elimination" className="cursor-pointer">
+                  Eliminación
+                </Label>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Control de Cambios */}
+      <Card className="border-2" style={{ borderColor: '#6f7b2c' }}>
+        <CardHeader>
+          <CardTitle style={{ color: '#2e5244' }}>Control de Cambios</CardTitle>
           <CardDescription>
-            ⭐ Ingrese los datos históricos del documento (si aplica)
+            Si el documento ya existe, ingrese aquí los datos históricos. Si es un documento completamente nuevo, deje versión 1.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert className="border-yellow-200 bg-yellow-50">
-            <Info className="h-4 w-4 text-yellow-600" />
-            <AlertDescription className="text-yellow-800 text-sm">
-              <strong>Importante:</strong> Si el documento ya existe físicamente y tiene un historial 
-              (versión 2, 3, etc.), ingrese aquí los datos históricos. Si es un documento completamente 
-              nuevo, deje versión 1.
-            </AlertDescription>
-          </Alert>
-
           <div>
             <Label htmlFor="version">
               Versión Actual del Documento <span className="text-red-500">*</span>
@@ -484,156 +797,35 @@ export default function FormularioCreacion({
               rows={3}
               placeholder="Ej: Actualización según ISO 9001:2015, Corrección de formato, etc."
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Describa el motivo del cambio más reciente (si aplica)
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Ubicación y Almacenamiento */}
-      <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
-        <CardHeader>
-          <CardTitle style={{ color: '#2e5244' }}>Ubicación y Almacenamiento</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="storage_location">Ubicación</Label>
-            <Input
-              id="storage_location"
-              name="storage_location"
-              value={formData.storage_location}
-              onChange={handleChange}
-              placeholder="Ej: Pc Gerente, Archivo Central, Carpeta Compartida"
-            />
-          </div>
-
-          <div className="space-y-3">
-            <Label>Tipo de Archivo</Label>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="file_type_magnetic"
-                checked={formData.file_type_magnetic}
-                onCheckedChange={(checked) => 
-                  setFormData(prev => ({ ...prev, file_type_magnetic: checked }))
-                }
-              />
-              <Label htmlFor="file_type_magnetic" className="font-normal cursor-pointer">
-                Magnético (Digital)
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="file_type_physical"
-                checked={formData.file_type_physical}
-                onCheckedChange={(checked) => 
-                  setFormData(prev => ({ ...prev, file_type_physical: checked }))
-                }
-              />
-              <Label htmlFor="file_type_physical" className="font-normal cursor-pointer">
-                Físico (Papel)
-              </Label>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Retención */}
-      <Card className="border-2" style={{ borderColor: '#6f7b2c' }}>
-        <CardHeader>
-          <CardTitle style={{ color: '#2e5244' }}>Tiempo de Retención</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="retention_central">Retención Central (años)</Label>
-            <Input
-              id="retention_central"
-              name="retention_central"
-              type="number"
-              min="0"
-              value={formData.retention_central}
-              onChange={handleChange}
-              placeholder="Ej: 5"
-            />
-          </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="retention_management"
-              checked={formData.retention_management}
-              onCheckedChange={(checked) => 
-                setFormData(prev => ({ ...prev, retention_management: checked }))
-              }
-            />
-            <Label htmlFor="retention_management" className="font-normal cursor-pointer">
-              Retención en Gestión
-            </Label>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Disposición Final */}
-      <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
-        <CardHeader>
-          <CardTitle style={{ color: '#2e5244' }}>Disposición Final</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="disposition_total_conservation"
-              checked={formData.disposition_total_conservation}
-              onCheckedChange={(checked) => 
-                setFormData(prev => ({ ...prev, disposition_total_conservation: checked }))
-              }
-            />
-            <Label htmlFor="disposition_total_conservation" className="font-normal cursor-pointer">
-              Conservación Total
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="disposition_selection"
-              checked={formData.disposition_selection}
-              onCheckedChange={(checked) => 
-                setFormData(prev => ({ ...prev, disposition_selection: checked }))
-              }
-            />
-            <Label htmlFor="disposition_selection" className="font-normal cursor-pointer">
-              Selección
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="disposition_elimination"
-              checked={formData.disposition_elimination}
-              onCheckedChange={(checked) => 
-                setFormData(prev => ({ ...prev, disposition_elimination: checked }))
-              }
-            />
-            <Label htmlFor="disposition_elimination" className="font-normal cursor-pointer">
-              Eliminación
-            </Label>
           </div>
         </CardContent>
       </Card>
 
       {/* Botones */}
-      <div className="flex justify-end space-x-3">
-        <Button 
-          type="button" 
-          variant="outline"
-          onClick={() => {
-            if (onSuccess) onSuccess();
-          }}
-        >
-          Cancelar
-        </Button>
+      <div className="flex gap-3 justify-end">
+        {onCancel && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={loading}
+          >
+            Cancelar
+          </Button>
+        )}
         <Button
           type="submit"
-          disabled={loading || !!codeError || !file}
-          style={{ backgroundColor: '#2e5244' }}
-          className="text-white"
+          disabled={loading || generatingCode || (isNewFormat && !autoCode)}
+          style={{ backgroundColor: '#6dbd96' }}
+          className="hover:opacity-90"
         >
-          {loading ? 'Creando...' : 'Crear Documento'}
+          {loading ? (
+            'Creando...'
+          ) : isNewFormat ? (
+            '📤 Enviar para Aprobación'
+          ) : (
+            '✅ Crear Documento'
+          )}
         </Button>
       </div>
     </form>

@@ -1,7 +1,6 @@
 // =====================================================
-// COMPONENTE: FormularioCreacion.jsx COMPLETO
-// =====================================================
-// Versión con plantillas y logo indecon.png
+// FormularioCreacion.jsx - VERSIÓN FINAL
+// Solo se agrega selector Excel/Word al código existente
 // =====================================================
 
 import { useState, useEffect } from 'react';
@@ -17,7 +16,8 @@ import { Textarea } from '../../../app/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../app/components/ui/card';
 import { Alert, AlertDescription } from '../../../app/components/ui/alert';
 import { Checkbox } from '../../../app/components/ui/checkbox';
-import { Upload, X, FileText, AlertCircle, CheckCircle2, Info, Sparkles, Download } from 'lucide-react';
+import { Upload, X, FileText, AlertCircle, CheckCircle2, Info, Sparkles, Download, FileSpreadsheet } from 'lucide-react';
+import InstruccionesWordModal from './InstruccionesWordModal';
 
 export default function FormularioCreacion({ 
   documentTypes = [], 
@@ -32,6 +32,9 @@ export default function FormularioCreacion({
   const [isNewFormat, setIsNewFormat] = useState(false);
   const [autoCode, setAutoCode] = useState('');
   const [generatingCode, setGeneratingCode] = useState(false);
+  
+  // 🆕 NUEVO: Estado para tipo de plantilla
+  const [templateType, setTemplateType] = useState('excel'); // 'excel' o 'word'
   
   // Estado para descarga de plantilla
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
@@ -102,7 +105,7 @@ export default function FormularioCreacion({
     }
   };
 
-  // Descargar plantilla con logo
+  // 🆕 MODIFICADO: Descargar plantilla según tipo seleccionado
   const handleDownloadTemplate = async () => {
     try {
       setDownloadingTemplate(true);
@@ -112,31 +115,28 @@ export default function FormularioCreacion({
         throw new Error('Código y nombre son requeridos para generar la plantilla');
       }
 
-      // URL del logo indecon.png en Supabase
-      const logoUrl = 'https://wnsnymxabmxswnpcpvoj.supabase.co/storage/v1/object/public/assets/indecon.png';
+      const selectedProcess = processes.find(p => p.id === formData.process_id);
 
-      // Determinar tipo de archivo
-      const typeCode = autoCode.split('-')[0];
-      const isExcel = typeCode === 'RE'; // Registros son Excel
-
-      // Generar plantilla
-      if (isExcel) {
+      // 🎯 GENERAR SEGÚN TIPO SELECCIONADO (Excel o Word)
+      if (templateType === 'excel') {
+        // ✅ EXCEL: Plantilla con todos los campos rellenados
         await generateExcelTemplate({
           code: autoCode,
           name: formData.name,
           version: formData.version || '1',
-          logoUrl: logoUrl,
+          processName: selectedProcess?.name || ''
         });
-      } else {
+        console.log('✅ Plantilla Excel generada');
+        
+      } else if (templateType === 'word') {
+        // 📝 WORD: Plantilla con logo (usuario completa manual)
         await generateWordTemplate({
           code: autoCode,
-          name: formData.name,
           version: formData.version || '1',
-          logoUrl: logoUrl,
+          name: formData.name
         });
+        console.log('✅ Plantilla Word generada');
       }
-
-      console.log('✅ Plantilla descargada exitosamente');
 
     } catch (err) {
       console.error('Error descargando plantilla:', err);
@@ -388,9 +388,10 @@ export default function FormularioCreacion({
             </div>
           </div>
 
-          {/* Preview del código + BOTÓN PLANTILLA */}
+          {/* 🆕 SECCIÓN MODIFICADA: Preview del código + SELECTOR + BOTÓN */}
           {isNewFormat && autoCode && (
             <div className="space-y-3">
+              {/* Código generado */}
               <Alert className="border-blue-500 bg-blue-50">
                 <Info className="h-4 w-4 text-blue-600" />
                 <AlertDescription className="text-blue-900">
@@ -401,6 +402,76 @@ export default function FormularioCreacion({
                   </code>
                 </AlertDescription>
               </Alert>
+
+              {/* 🆕 SELECTOR DE TIPO DE PLANTILLA */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Selecciona el tipo de plantilla</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  
+                  {/* Opción Excel */}
+                  <div
+                    className={`border-2 rounded-lg p-3 cursor-pointer transition-all ${
+                      templateType === 'excel'
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-gray-300 hover:border-green-300'
+                    }`}
+                    onClick={() => setTemplateType('excel')}
+                  >
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        id="template-excel"
+                        name="templateType"
+                        value="excel"
+                        checked={templateType === 'excel'}
+                        onChange={() => setTemplateType('excel')}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor="template-excel" className="flex items-center gap-2 cursor-pointer font-semibold text-sm">
+                          <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                          Excel
+                        </Label>
+                        <p className="text-xs text-gray-600 mt-1">
+                          ✅ Campos automáticos
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Opción Word */}
+                  <div
+                    className={`border-2 rounded-lg p-3 cursor-pointer transition-all ${
+                      templateType === 'word'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-300 hover:border-blue-300'
+                    }`}
+                    onClick={() => setTemplateType('word')}
+                  >
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        id="template-word"
+                        name="templateType"
+                        value="word"
+                        checked={templateType === 'word'}
+                        onChange={() => setTemplateType('word')}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor="template-word" className="flex items-center gap-2 cursor-pointer font-semibold text-sm">
+                          <FileText className="h-4 w-4 text-blue-600" />
+                          Word
+                        </Label>
+                        <p className="text-xs text-gray-600 mt-1">
+                          ⚠️ Manual (~2 min)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
 
               {/* BOTÓN DESCARGAR PLANTILLA */}
               <Button
@@ -417,13 +488,13 @@ export default function FormularioCreacion({
                 ) : (
                   <>
                     <Download className="mr-2 h-4 w-4" />
-                    📥 Descargar Plantilla con Logo Indecon
+                    📥 Descargar Plantilla {templateType === 'excel' ? 'Excel' : 'Word'} con Logo Indecon
                   </>
                 )}
               </Button>
 
               <p className="text-xs text-gray-600 text-center">
-                📄 Descarga la plantilla con el código {autoCode} y logo prellenados.
+                📄 Descarga la plantilla {templateType === 'excel' ? 'Excel con todos los campos rellenados' : 'Word con logo (completar encabezado manualmente)'}.
                 <br />
                 Complétala offline y súbela aquí.
               </p>

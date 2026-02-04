@@ -1,7 +1,6 @@
-// src/context/AuthContext.jsx - VERSIÓN OPTIMIZADA SIN JOINS
-// ✅ Queries simples y rápidas sin JOINs
-// ✅ Timeouts más largos (15 segundos)
-// ✅ Carga en paralelo
+// src/context/AuthContext.jsx - OPTIMIZADO PARA ADMIN
+// ✅ Detecta admin ANTES de cargar permisos
+// ✅ Evita cargar 45 permisos innecesariamente
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -25,7 +24,7 @@ export const AuthProvider = ({ children }) => {
   // ==========================================
   // 🔧 UTILIDAD: Promise con timeout
   // ==========================================
-  const withTimeout = (promise, timeoutMs = 15000) => {
+  const withTimeout = (promise, timeoutMs = 20000) => {
     return Promise.race([
       promise,
       new Promise((_, reject) =>
@@ -35,33 +34,35 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ==========================================
-  // 🔍 FETCH FUNCTIONS - SIN JOINS
+  // 🔍 FETCH FUNCTIONS - OPTIMIZADAS
   // ==========================================
 
   /**
-   * Obtener perfil del usuario (SIN JOIN)
-   * ✅ Query más simple y rápida
+   * Obtener perfil del usuario
+   * ✅ Query simple sin JOIN
    */
   const fetchUserProfile = async (userId) => {
     try {
       console.log('🔄 fetchUserProfile for:', userId);
 
-      // Query simple sin JOIN
       const { data: profileData, error } = await withTimeout(
         supabase
           .from('profile')
-          .select('*')
+          .select('id, email, full_name, username, role, department_id, is_active, avatar_url, phone')
           .eq('id', userId)
           .single(),
-        15000
+        20000
       );
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error in profile query:', error);
+        throw error;
+      }
 
       console.log('✅ Profile loaded:', profileData);
 
-      // Si tiene department_id, cargarlo por separado
-      if (profileData.department_id) {
+      // Si tiene department_id, cargarlo por separado (opcional)
+      if (profileData?.department_id) {
         try {
           const { data: deptData } = await withTimeout(
             supabase
@@ -78,7 +79,6 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (deptError) {
           console.warn('⚠️ Could not load department:', deptError.message);
-          // No es crítico, continuar sin departamento
         }
       }
 
@@ -90,25 +90,33 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Obtener permisos del usuario (SIN JOIN)
-   * ✅ Carga en 2 pasos: IDs primero, luego códigos
+   * Obtener permisos del usuario
+   * ✅ OPTIMIZACIÓN: Si es admin, no hace query
    */
-  const fetchUserPermissions = async (userId) => {
+  const fetchUserPermissions = async (userId, userRole) => {
     try {
       console.log('🔄 fetchUserPermissions for:', userId);
 
-      // Paso 1: Obtener IDs de permisos (query simple)
+      // ⚡ OPTIMIZACIÓN: Si es admin o gerencia, retornar wildcard
+      if (userRole === 'admin' || userRole === 'gerencia') {
+        console.log('✨ User is', userRole, '- returning wildcard permissions');
+        return ['*:*:*'];
+      }
+
+      // Paso 1: Obtener IDs de permisos
       const { data: userPerms, error: userPermsError } = await withTimeout(
         supabase
           .from('user_permission')
           .select('permission_id')
           .eq('user_id', userId)
-          .eq('is_active', true)
-          .or('expires_at.is.null,expires_at.gt.now()'),
-        15000
+          .eq('is_active', true),
+        20000
       );
 
-      if (userPermsError) throw userPermsError;
+      if (userPermsError) {
+        console.error('❌ Error in user_permission query:', userPermsError);
+        throw userPermsError;
+      }
 
       if (!userPerms || userPerms.length === 0) {
         console.log('ℹ️ No permissions found for user');
@@ -124,10 +132,13 @@ export const AuthProvider = ({ children }) => {
           .from('permission')
           .select('code')
           .in('id', permissionIds),
-        10000
+        15000
       );
 
-      if (permsError) throw permsError;
+      if (permsError) {
+        console.error('❌ Error in permission query:', permsError);
+        throw permsError;
+      }
 
       const permissionCodes = permissions?.map(p => p.code).filter(Boolean) || [];
       console.log('✅ Permissions loaded:', permissionCodes.length, 'total');
@@ -141,7 +152,7 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Cargar datos del usuario
-   * ✅ SIEMPRE resuelve el loading
+   * ✅ Carga perfil primero, luego permisos (para detectar admin)
    */
   const loadUserData = async (authUser) => {
     console.log('🔄 loadUserData for:', authUser?.email);
@@ -155,23 +166,39 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      // Cargar perfil y permisos en paralelo
-      const [userProfile, userPermissions] = await Promise.all([
-        fetchUserProfile(authUser.id),
-        fetchUserPermissions(authUser.id),
-      ]);
+      // 1. Cargar perfil primero
+      const userProfile = await fetchUserProfile(authUser.id);
+
+      // 2. Cargar permisos (optimizado para admin)
+      const userPermissions = await fetchUserPermissions(authUser.id, userProfile?.role);
+
+      // Si el perfil falló, usar datos mínimos
+      const finalProfile = userProfile || {
+        id: authUser.id,
+        email: authUser.email,
+        full_name: authUser.email.split('@')[0],
+        role: 'usuario',
+        is_active: true
+      };
 
       setUser(authUser);
-      setProfile(userProfile);
-      setPermissions(userPermissions);
+      setProfile(finalProfile);
+      setPermissions(userPermissions || []);
 
       console.log('✅ User data loaded successfully');
-      console.log('   Profile:', userProfile?.full_name, '| Role:', userProfile?.role);
-      console.log('   Permissions:', userPermissions.length, 'total');
+      console.log('   Profile:', finalProfile?.full_name, '| Role:', finalProfile?.role);
+      console.log('   Permissions:', userPermissions?.length || 0, 'total');
     } catch (error) {
       console.error('❌ Unexpected error in loadUserData:', error);
+      
       setUser(authUser);
-      setProfile(null);
+      setProfile({
+        id: authUser.id,
+        email: authUser.email,
+        full_name: authUser.email.split('@')[0],
+        role: 'usuario',
+        is_active: true
+      });
       setPermissions([]);
     } finally {
       setLoading(false);
@@ -195,11 +222,11 @@ export const AuthProvider = ({ children }) => {
       if (error) throw error;
 
       console.log('✅ Login successful');
-      return { data, error: null };
+      return { success: true, data, error: null };
     } catch (error) {
       console.error('❌ Login error:', error);
       setLoading(false);
-      return { data: null, error };
+      return { success: false, data: null, error: error.message };
     }
   };
 
@@ -231,12 +258,12 @@ export const AuthProvider = ({ children }) => {
   const isGerencia = profile?.role === 'gerencia';
 
   const hasPermission = (permissionCode) => {
-    if (isAdmin) return true;
+    if (isAdmin || isGerencia) return true;
     return permissions.includes(permissionCode);
   };
 
   const hasAnyPermission = (permissionCodes) => {
-    if (isAdmin) return true;
+    if (isAdmin || isGerencia) return true;
     return permissionCodes.some((code) => permissions.includes(code));
   };
 
@@ -309,13 +336,13 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
-    // Timeout de seguridad (20 segundos)
+    // Timeout de seguridad
     const timeoutId = setTimeout(() => {
       if (mounted && loading) {
         console.warn('⚠️ Loading timeout - forcing loading = false');
         setLoading(false);
       }
-    }, 20000);
+    }, 25000);
 
     return () => {
       mounted = false;

@@ -1,6 +1,7 @@
 // src/components/modules/GestionDocumental/ListadoMaestro.jsx
 import { useState } from 'react';
 import { useDocuments, useDocumentTypes, useProcesses } from '@/hooks/useDocuments';
+import { useFileDownload } from '@/hooks/useFileDownload'; // ⬅️ NUEVO
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -15,7 +16,8 @@ import {
   Filter,
   RefreshCw,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Loader2  // ⬅️ NUEVO
 } from 'lucide-react';
 
 export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
@@ -41,6 +43,9 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
 
   const { documentTypes = [] } = useDocumentTypes() || {};
   const { processes = [] } = useProcesses() || {};
+  
+  // ⬅️ NUEVO: Hook para descargar archivos
+  const { downloadDocument, downloading } = useFileDownload();
 
   // Agrupar documentos por proceso
   const groupedByProcess = documents.reduce((acc, doc) => {
@@ -485,14 +490,48 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                           {/* ACCIONES */}
                           <td className="p-2">
                             <div className="flex items-center justify-center space-x-1">
-                              <Button size="sm" variant="ghost" onClick={() => onView && onView(doc)} className="h-7 w-7 p-0">
+                              {/* Botón VER */}
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => onView && onView(doc)} 
+                                className="h-7 w-7 p-0"
+                                title="Ver detalles"
+                              >
                                 <Eye className="h-3 w-3" style={{ color: '#6dbd96' }} />
                               </Button>
-                              <Button size="sm" variant="ghost" onClick={() => onEdit && onEdit(doc)} className="h-7 w-7 p-0">
+
+                              {/* Botón EDITAR */}
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => onEdit && onEdit(doc)} 
+                                className="h-7 w-7 p-0"
+                                title="Editar documento"
+                              >
                                 <Edit className="h-3 w-3" style={{ color: '#2e5244' }} />
                               </Button>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
-                                <Download className="h-3 w-3" style={{ color: '#6f7b2c' }} />
+
+                              {/* Botón DESCARGAR - ⬅️ MODIFICADO */}
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => downloadDocument(doc)}
+                                disabled={downloading || !doc.file_path}
+                                className="h-7 w-7 p-0"
+                                title={
+                                  !doc.file_path 
+                                    ? "No hay archivo disponible" 
+                                    : downloading 
+                                      ? "Descargando..." 
+                                      : "Descargar archivo"
+                                }
+                              >
+                                {downloading ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" style={{ color: '#6f7b2c' }} />
+                                ) : (
+                                  <Download className="h-3 w-3" style={{ color: '#6f7b2c' }} />
+                                )}
                               </Button>
                             </div>
                           </td>

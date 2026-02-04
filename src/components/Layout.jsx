@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/app/components/ui/button';
+import NotificationBell from '../components/Layout/NotificationBell'; // ⬅️ AGREGAR
 import { 
   FileText, 
   Target, 
@@ -157,28 +158,31 @@ export default function Layout({ children, currentModule, onModuleChange }) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <header className="bg-white shadow-sm border-b" style={{ borderColor: '#6dbd96' }}>
-          <div className="px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden"
-              >
-                {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </Button>
-              <div>
-                <h1 style={{ color: '#2e5244' }}>
-                  {MODULES.find(m => m.id === currentModule)?.name || 
-                   (currentModule === 'usuarios' ? 'Gestión de Usuarios' : 'Inicio')}
-                </h1>
-                <p className="text-sm" style={{ color: '#6f7b2c' }}>
-                  {profile?.department?.name || 'Sistema Integrado de Gestión'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </header>
+  <div className="px-4 py-4 flex items-center justify-between">
+    <div className="flex items-center space-x-4">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="lg:hidden"
+      >
+        {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      </Button>
+      <div>
+        <h1 style={{ color: '#2e5244' }}>
+          {MODULES.find(m => m.id === currentModule)?.name || 
+           (currentModule === 'usuarios' ? 'Gestión de Usuarios' : 'Inicio')}
+        </h1>
+        <p className="text-sm" style={{ color: '#6f7b2c' }}>
+          {profile?.department?.name || 'Sistema Integrado de Gestión'}
+        </p>
+      </div>
+    </div>
+    
+    {/* ⬅️ CAMPANA CON NAVEGACIÓN CORREGIDA */}
+    <NotificationBell onNavigate={onModuleChange} />
+  </div>
+</header>
 
         {/* Content */}
         <main className="flex-1 overflow-auto">

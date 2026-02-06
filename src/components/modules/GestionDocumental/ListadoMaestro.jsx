@@ -1,7 +1,8 @@
 // src/components/modules/GestionDocumental/ListadoMaestro.jsx
 import { useState } from 'react';
 import { useDocuments, useDocumentTypes, useProcesses } from '@/hooks/useDocuments';
-import { useFileDownload } from '@/hooks/useFileDownload'; // ⬅️ NUEVO
+import { useFileDownload } from '@/hooks/useFileDownload';
+import ApprovalModal from './ApprovalModal'; // ⬅️ NUEVO
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -17,7 +18,7 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
-  Loader2  // ⬅️ NUEVO
+  Loader2
 } from 'lucide-react';
 
 export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
@@ -27,6 +28,10 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
   const [selectedStatus, setSelectedStatus] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [expandedProcesses, setExpandedProcesses] = useState({});
+  
+  // ⬅️ NUEVO: Estados para el modal de aprobación
+  const [selectedDocument, setSelectedDocument] = useState(null);
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
 
   const { 
     documents = [], 
@@ -43,9 +48,26 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
 
   const { documentTypes = [] } = useDocumentTypes() || {};
   const { processes = [] } = useProcesses() || {};
-  
-  // ⬅️ NUEVO: Hook para descargar archivos
   const { downloadDocument, downloading } = useFileDownload();
+
+  // ⬅️ NUEVO: Función para abrir modal de aprobación
+  const handleOpenApprovalModal = (document) => {
+    console.log('📄 Abriendo modal de aprobación para:', document.code);
+    setSelectedDocument(document);
+    setIsApprovalModalOpen(true);
+  };
+
+  // ⬅️ NUEVO: Función para cerrar modal
+  const handleCloseApprovalModal = () => {
+    setIsApprovalModalOpen(false);
+    setSelectedDocument(null);
+  };
+
+  // ⬅️ NUEVO: Función cuando se aprueba/rechaza exitosamente
+  const handleApprovalSuccess = () => {
+    console.log('✅ Aprobación/Rechazo exitoso, refrescando listado...');
+    refresh(); // Refrescar el listado
+  };
 
   // Agrupar documentos por proceso
   const groupedByProcess = documents.reduce((acc, doc) => {
@@ -482,9 +504,22 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                             ) : '-'}
                           </td>
 
-                          {/* ESTADO */}
+                          {/* ESTADO - ⬅️ MODIFICADO: Badge clickeable si está pendiente */}
                           <td className="p-2 text-center border-r">
-                            {getStatusBadge(doc.status)}
+                            {doc.status === 'pending_approval' ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation(); // Evitar conflictos con otros clicks
+                                  handleOpenApprovalModal(doc);
+                                }}
+                                className="hover:scale-105 transition-transform cursor-pointer"
+                                title="Click para revisar y aprobar/rechazar"
+                              >
+                                {getStatusBadge(doc.status)}
+                              </button>
+                            ) : (
+                              getStatusBadge(doc.status)
+                            )}
                           </td>
 
                           {/* ACCIONES */}
@@ -512,7 +547,7 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                                 <Edit className="h-3 w-3" style={{ color: '#2e5244' }} />
                               </Button>
 
-                              {/* Botón DESCARGAR - ⬅️ MODIFICADO */}
+                              {/* Botón DESCARGAR */}
                               <Button 
                                 size="sm" 
                                 variant="ghost" 
@@ -552,6 +587,14 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
           )}
         </CardContent>
       </Card>
+
+      {/* ⬅️ NUEVO: Modal de Aprobación */}
+      <ApprovalModal
+        document={selectedDocument}
+        isOpen={isApprovalModalOpen}
+        onClose={handleCloseApprovalModal}
+        onSuccess={handleApprovalSuccess}
+      />
     </div>
   );
 }

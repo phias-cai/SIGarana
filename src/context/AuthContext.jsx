@@ -1,8 +1,9 @@
-// src/context/AuthContext.jsx - OPTIMIZADO PARA ADMIN
-// ✅ Detecta admin ANTES de cargar permisos
-// ✅ Evita cargar 45 permisos innecesariamente
+// src/context/AuthContext.jsx - QUERIES DIRECTAS (SIN RPC)
+// ✅ Usa queries directas que sabemos que funcionan (0.115ms)
+// ✅ Sin función RPC que se cuelga
+// ✅ Sin race conditions
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext({});
@@ -20,144 +21,26 @@ export const AuthProvider = ({ children }) => {
   const [profile, setProfile] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  const loadingUserRef = useRef(false);
+  const currentUserIdRef = useRef(null);
+  const initializedRef = useRef(false);
 
   // ==========================================
-  // 🔧 UTILIDAD: Promise con timeout
-  // ==========================================
-  const withTimeout = (promise, timeoutMs = 20000) => {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Query timeout')), timeoutMs)
-      ),
-    ]);
-  };
-
-  // ==========================================
-  // 🔍 FETCH FUNCTIONS - OPTIMIZADAS
+  // 🚀 CARGAR DATOS (QUERIES DIRECTAS)
   // ==========================================
 
-  /**
-   * Obtener perfil del usuario
-   * ✅ Query simple sin JOIN
-   */
-  const fetchUserProfile = async (userId) => {
-    try {
-      console.log('🔄 fetchUserProfile for:', userId);
-
-      const { data: profileData, error } = await withTimeout(
-        supabase
-          .from('profile')
-          .select('id, email, full_name, username, role, department_id, is_active, avatar_url, phone')
-          .eq('id', userId)
-          .single(),
-        20000
-      );
-
-      if (error) {
-        console.error('❌ Error in profile query:', error);
-        throw error;
-      }
-
-      console.log('✅ Profile loaded:', profileData);
-
-      // Si tiene department_id, cargarlo por separado (opcional)
-      if (profileData?.department_id) {
-        try {
-          const { data: deptData } = await withTimeout(
-            supabase
-              .from('department')
-              .select('id, name, code')
-              .eq('id', profileData.department_id)
-              .single(),
-            10000
-          );
-
-          if (deptData) {
-            profileData.department = deptData;
-            console.log('✅ Department loaded:', deptData.name);
-          }
-        } catch (deptError) {
-          console.warn('⚠️ Could not load department:', deptError.message);
-        }
-      }
-
-      return profileData;
-    } catch (error) {
-      console.error('❌ Error fetching profile:', error.message);
-      return null;
-    }
-  };
-
-  /**
-   * Obtener permisos del usuario
-   * ✅ OPTIMIZACIÓN: Si es admin, no hace query
-   */
-  const fetchUserPermissions = async (userId, userRole) => {
-    try {
-      console.log('🔄 fetchUserPermissions for:', userId);
-
-      // ⚡ OPTIMIZACIÓN: Si es admin o gerencia, retornar wildcard
-      if (userRole === 'admin' || userRole === 'gerencia') {
-        console.log('✨ User is', userRole, '- returning wildcard permissions');
-        return ['*:*:*'];
-      }
-
-      // Paso 1: Obtener IDs de permisos
-      const { data: userPerms, error: userPermsError } = await withTimeout(
-        supabase
-          .from('user_permission')
-          .select('permission_id')
-          .eq('user_id', userId)
-          .eq('is_active', true),
-        20000
-      );
-
-      if (userPermsError) {
-        console.error('❌ Error in user_permission query:', userPermsError);
-        throw userPermsError;
-      }
-
-      if (!userPerms || userPerms.length === 0) {
-        console.log('ℹ️ No permissions found for user');
-        return [];
-      }
-
-      const permissionIds = userPerms.map(p => p.permission_id).filter(Boolean);
-      console.log(`✅ Found ${permissionIds.length} permission IDs`);
-
-      // Paso 2: Obtener códigos de permisos
-      const { data: permissions, error: permsError } = await withTimeout(
-        supabase
-          .from('permission')
-          .select('code')
-          .in('id', permissionIds),
-        15000
-      );
-
-      if (permsError) {
-        console.error('❌ Error in permission query:', permsError);
-        throw permsError;
-      }
-
-      const permissionCodes = permissions?.map(p => p.code).filter(Boolean) || [];
-      console.log('✅ Permissions loaded:', permissionCodes.length, 'total');
-      
-      return permissionCodes;
-    } catch (error) {
-      console.error('❌ Error fetching permissions:', error.message);
-      return [];
-    }
-  };
-
-  /**
-   * Cargar datos del usuario
-   * ✅ Carga perfil primero, luego permisos (para detectar admin)
-   */
   const loadUserData = async (authUser) => {
+    if (loadingUserRef.current && currentUserIdRef.current === authUser?.id) {
+      console.log('⏭️ Already loading, skipping...');
+      return;
+    }
+
     console.log('🔄 loadUserData for:', authUser?.email);
 
     if (!authUser) {
+      loadingUserRef.current = false;
+      currentUserIdRef.current = null;
       setUser(null);
       setProfile(null);
       setPermissions([]);
@@ -166,14 +49,92 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      // 1. Cargar perfil primero
-      const userProfile = await fetchUserProfile(authUser.id);
+      loadingUserRef.current = true;
+      currentUserIdRef.current = authUser.id;
 
-      // 2. Cargar permisos (optimizado para admin)
-      const userPermissions = await fetchUserPermissions(authUser.id, userProfile?.role);
+      const startTime = Date.now();
 
-      // Si el perfil falló, usar datos mínimos
-      const finalProfile = userProfile || {
+      // Helper: Query con timeout
+      const queryWithTimeout = (promise, timeoutMs = 10000) => {
+        return Promise.race([
+          promise,
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`Query timeout (${timeoutMs}ms)`)), timeoutMs)
+          )
+        ]);
+      };
+
+      // ⚡ Query 1: Perfil SIN departamento (más rápido)
+      console.log('📡 Loading profile...');
+      const { data: profileData, error: profileError } = await queryWithTimeout(
+        supabase
+          .from('profile')
+          .select('id, email, full_name, username, role, department_id, is_active, avatar_url, phone')
+          .eq('id', authUser.id)
+          .single(),
+        10000
+      );
+
+      if (profileError) throw profileError;
+
+      console.log('✅ Profile loaded');
+
+      // Cargar departamento aparte (si tiene)
+      if (profileData?.department_id) {
+        console.log('📡 Loading department...');
+        const { data: deptData } = await queryWithTimeout(
+          supabase
+            .from('department')
+            .select('id, name, code')
+            .eq('id', profileData.department_id)
+            .single(),
+          5000
+        );
+        
+        if (deptData) {
+          profileData.department = deptData;
+          console.log('✅ Department loaded');
+        }
+      }
+
+      // ⚡ Query 2: Permisos (optimizada con timeout)
+      console.log('📡 Loading permissions...');
+      const { data: userPerms, error: permsError } = await queryWithTimeout(
+        supabase
+          .from('user_permission')
+          .select('permission_id')
+          .eq('user_id', authUser.id)
+          .eq('is_active', true),
+        10000
+      );
+
+      if (permsError) throw permsError;
+
+      let permissionCodes = [];
+
+      if (userPerms && userPerms.length > 0) {
+        const permIds = userPerms.map(p => p.permission_id);
+        
+        const { data: perms, error: codesError } = await queryWithTimeout(
+          supabase
+            .from('permission')
+            .select('code')
+            .in('id', permIds),
+          10000
+        );
+
+        if (codesError) throw codesError;
+        
+        permissionCodes = perms?.map(p => p.code) || [];
+      }
+
+      console.log('✅ Permissions loaded:', permissionCodes.length);
+
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ All data loaded in ${elapsed}ms`);
+
+      // Preparar datos finales
+      const finalProfile = profileData || {
         id: authUser.id,
         email: authUser.email,
         full_name: authUser.email.split('@')[0],
@@ -183,14 +144,16 @@ export const AuthProvider = ({ children }) => {
 
       setUser(authUser);
       setProfile(finalProfile);
-      setPermissions(userPermissions || []);
+      setPermissions(permissionCodes);
 
       console.log('✅ User data loaded successfully');
       console.log('   Profile:', finalProfile?.full_name, '| Role:', finalProfile?.role);
-      console.log('   Permissions:', userPermissions?.length || 0, 'total');
+      console.log('   Permissions:', permissionCodes?.length);
+
     } catch (error) {
-      console.error('❌ Unexpected error in loadUserData:', error);
+      console.error('❌ Error in loadUserData:', error);
       
+      // Fallback
       setUser(authUser);
       setProfile({
         id: authUser.id,
@@ -201,6 +164,7 @@ export const AuthProvider = ({ children }) => {
       });
       setPermissions([]);
     } finally {
+      loadingUserRef.current = false;
       setLoading(false);
     }
   };
@@ -234,6 +198,10 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('🚪 Logging out...');
       setLoading(true);
+
+      loadingUserRef.current = false;
+      currentUserIdRef.current = null;
+      initializedRef.current = false;
 
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -283,7 +251,7 @@ export const AuthProvider = ({ children }) => {
         if (!mounted) return;
 
         if (error) {
-          console.error('❌ Error getting initial session:', error);
+          console.error('❌ Error getting session:', error);
           setLoading(false);
           return;
         }
@@ -291,58 +259,74 @@ export const AuthProvider = ({ children }) => {
         if (session?.user) {
           console.log('✅ Initial session found:', session.user.email);
           await loadUserData(session.user);
+          initializedRef.current = true;
         } else {
           console.log('ℹ️ No initial session');
           setLoading(false);
+          initializedRef.current = true;
         }
       } catch (error) {
-        console.error('❌ Error initializing:', error);
+        console.error('❌ Initialize error:', error);
         if (mounted) {
           setLoading(false);
+          initializedRef.current = true;
         }
       }
     };
 
     initialize();
 
-    // Listener de cambios de autenticación
+    // Listener solo para eventos NUEVOS
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      console.log('🔔 Auth event:', event, session?.user?.email || 'no user');
+      console.log('🔔 Auth event:', event, '| Initialized:', initializedRef.current);
+
+      // Ignorar INITIAL_SESSION (ya lo maneja initialize)
+      if (event === 'INITIAL_SESSION') {
+        console.log('⏭️ Skipping INITIAL_SESSION');
+        return;
+      }
+
+      // ⬅️ NUEVO: Ignorar SIGNED_IN si aún no hemos terminado de inicializar
+      if (event === 'SIGNED_IN' && !initializedRef.current) {
+        console.log('⏭️ Skipping SIGNED_IN (still initializing)');
+        return;
+      }
 
       if (event === 'SIGNED_IN' && session?.user) {
-        await loadUserData(session.user);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setProfile(null);
-        setPermissions([]);
-        setLoading(false);
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        console.log('🔄 Token refreshed');
-        // Solo recargar si cambió el usuario
-        if (user?.id !== session.user.id) {
-          await loadUserData(session.user);
+        // Solo recargar si NO tenemos datos (login nuevo)
+        if (!profile) {
+          console.log('✅ SIGNED_IN - loading user data (no profile yet)');
+          if (!loadingUserRef.current) {
+            await loadUserData(session.user);
+          }
+        } else {
+          console.log('✅ SIGNED_IN - keeping existing data (profile exists)');
         }
-      } else if (session?.user) {
-        await loadUserData(session.user);
-      } else {
+      } else if (event === 'SIGNED_OUT') {
+        console.log('✅ SIGNED_OUT - clearing data');
+        loadingUserRef.current = false;
+        currentUserIdRef.current = null;
+        initializedRef.current = false;
         setUser(null);
         setProfile(null);
         setPermissions([]);
         setLoading(false);
+      } else if (event === 'TOKEN_REFRESHED') {
+        console.log('✅ TOKEN_REFRESHED - keeping session');
       }
     });
 
     // Timeout de seguridad
     const timeoutId = setTimeout(() => {
-      if (mounted && loading) {
-        console.warn('⚠️ Loading timeout - forcing loading = false');
+      if (mounted && loading && !loadingUserRef.current) {
+        console.warn('⚠️ Loading timeout - forcing false');
         setLoading(false);
       }
-    }, 25000);
+    }, 15000);
 
     return () => {
       mounted = false;

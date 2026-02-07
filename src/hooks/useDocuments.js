@@ -1,49 +1,25 @@
 // src/hooks/useDocuments.js
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../lib/supabase';
 
 /**
- * Hook para gestionar documentos con filtros, búsqueda y estadísticas
- * @param {Object} filters - Filtros opcionales
- * @param {string} filters.searchTerm - Término de búsqueda
- * @param {string} filters.documentTypeId - ID del tipo de documento
- * @param {string} filters.processId - ID del proceso
- * @param {string} filters.status - Estado del documento
- * @param {boolean} filters.includeInactive - Incluir documentos inactivos
+ * Hook principal para cargar documentos con filtros
  */
-export function useDocuments(filters = {}) {
+export const useDocuments = ({ searchTerm, documentTypeId, processId, status } = {}) => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
-    byStatus: {
-      draft: 0,
-      pending_approval: 0,
-      published: 0,
-      archived: 0
-    },
-    byProcess: {}
+    byStatus: { draft: 0, pending_approval: 0, published: 0, archived: 0 }
   });
 
-  const {
-    searchTerm = '',
-    documentTypeId = null,
-    processId = null,
-    status = null,
-    includeInactive = false
-  } = filters;
-
-  useEffect(() => {
-    loadDocuments();
-  }, [searchTerm, documentTypeId, processId, status, includeInactive]);
-
-  const loadDocuments = async () => {
+  const fetchDocuments = async () => {
     try {
       setLoading(true);
-      setError(null);
+      console.log('📄 Cargando documentos...');
 
-      // Query base
+      // ✅ Query con JOINs correctos para traer relaciones
       let query = supabase
         .from('document')
         .select(`
@@ -56,237 +32,212 @@ export function useDocuments(filters = {}) {
           ),
           process:process_id (
             id,
-            code,
             name
           ),
-          responsible:created_by (
+          created_by_profile:created_by (
             id,
-            full_name,
-            email
+            email,
+            full_name
           )
         `)
-        .order('process_id', { ascending: true })
-        .order('code', { ascending: true });
+        .order('created_at', { ascending: false });
 
       // Aplicar filtros
+      if (searchTerm) {
+        query = query.or(`code.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%,objective.ilike.%${searchTerm}%`);
+      }
       if (documentTypeId) {
         query = query.eq('document_type_id', documentTypeId);
       }
-
       if (processId) {
         query = query.eq('process_id', processId);
       }
-
       if (status) {
         query = query.eq('status', status);
-      }
-
-      // Búsqueda por texto (código, nombre)
-      if (searchTerm) {
-        query = query.or(`code.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
       }
 
       const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
 
+      console.log('✅ Documentos cargados:', data?.length || 0);
+      
       // Calcular estadísticas
-      const newStats = {
-        total: data.length,
+      const statsCalc = {
+        total: data?.length || 0,
         byStatus: {
-          draft: data.filter(d => d.status === 'draft').length,
-          pending_approval: data.filter(d => d.status === 'pending_approval').length,
-          published: data.filter(d => d.status === 'published').length,
-          archived: data.filter(d => d.status === 'archived').length
-        },
-        byProcess: {}
+          draft: data?.filter(d => d.status === 'draft').length || 0,
+          pending_approval: data?.filter(d => d.status === 'pending_approval').length || 0,
+          published: data?.filter(d => d.status === 'published').length || 0,
+          archived: data?.filter(d => d.status === 'archived').length || 0
+        }
       };
 
-      // Agrupar por proceso
-      data.forEach(doc => {
-        const processCode = doc.process?.code || 'Sin proceso';
-        if (!newStats.byProcess[processCode]) {
-          newStats.byProcess[processCode] = {
-            name: doc.process?.name || 'Sin proceso',
-            count: 0,
-            documents: []
-          };
-        }
-        newStats.byProcess[processCode].count++;
-        newStats.byProcess[processCode].documents.push(doc);
-      });
-
-      setDocuments(data);
-      setStats(newStats);
+      setDocuments(data || []);
+      setStats(statsCalc);
+      setError(null);
 
     } catch (err) {
-      console.error('Error loading documents:', err);
+      console.error('❌ Error cargando documentos:', err);
       setError(err.message);
+      setDocuments([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const refresh = () => {
-    loadDocuments();
-  };
+  useEffect(() => {
+    fetchDocuments();
+  }, [searchTerm, documentTypeId, processId, status]);
 
   return {
     documents,
     loading,
     error,
     stats,
-    refresh
+    refresh: fetchDocuments
   };
-}
+};
 
 /**
- * Hook para obtener tipos de documentos
+ * Hook para cargar tipos de documento
  */
-export function useDocumentTypes() {
+export const useDocumentTypes = () => {
   const [documentTypes, setDocumentTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    loadDocumentTypes();
+    const fetchDocumentTypes = async () => {
+      try {
+        setLoading(true);
+        console.log('📋 Cargando tipos de documento...');
+
+        const { data, error: fetchError } = await supabase
+          .from('document_type')
+          .select('*')
+          .order('name');
+
+        if (fetchError) throw fetchError;
+
+        console.log('✅ Tipos de documento cargados:', data?.length || 0);
+        setDocumentTypes(data || []);
+        setError(null);
+
+      } catch (err) {
+        console.error('❌ Error cargando tipos de documento:', err);
+        setError(err.message);
+        setDocumentTypes([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDocumentTypes();
   }, []);
 
-  const loadDocumentTypes = async () => {
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('document_type')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order');
-
-      if (fetchError) throw fetchError;
-      setDocumentTypes(data || []);
-    } catch (err) {
-      console.error('Error loading document types:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return { documentTypes, loading, error };
-}
+};
 
 /**
- * Hook para obtener procesos
+ * Hook para cargar procesos
  */
-export function useProcesses() {
+export const useProcesses = () => {
   const [processes, setProcesses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    loadProcesses();
+    const fetchProcesses = async () => {
+      try {
+        setLoading(true);
+        console.log('🔄 Cargando procesos...');
+
+        const { data, error: fetchError } = await supabase
+          .from('process')
+          .select('*')
+          .order('name');
+
+        if (fetchError) throw fetchError;
+
+        console.log('✅ Procesos cargados:', data?.length || 0);
+        setProcesses(data || []);
+        setError(null);
+
+      } catch (err) {
+        console.error('❌ Error cargando procesos:', err);
+        setError(err.message);
+        setProcesses([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProcesses();
   }, []);
 
-  const loadProcesses = async () => {
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('process')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order');
-
-      if (fetchError) throw fetchError;
-      setProcesses(data || []);
-    } catch (err) {
-      console.error('Error loading processes:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return { processes, loading, error };
-}
+};
 
 /**
- * Hook para gestionar un documento individual
+ * Hook para cargar un documento individual por ID
  */
-export function useDocument(documentId) {
+export const useDocument = (documentId) => {
   const [document, setDocument] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (documentId) {
-      loadDocument();
+    if (!documentId) {
+      setLoading(false);
+      return;
     }
+
+    const fetchDocument = async () => {
+      try {
+        setLoading(true);
+        console.log('📄 Cargando documento:', documentId);
+
+        const { data, error: fetchError } = await supabase
+          .from('document')
+          .select(`
+            *,
+            document_type:document_type_id (
+              id,
+              code,
+              name,
+              prefix
+            ),
+            process:process_id (
+              id,
+              name
+            ),
+            created_by_profile:created_by (
+              id,
+              email,
+              full_name
+            )
+          `)
+          .eq('id', documentId)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        console.log('✅ Documento cargado:', data?.code);
+        setDocument(data);
+        setError(null);
+
+      } catch (err) {
+        console.error('❌ Error cargando documento:', err);
+        setError(err.message);
+        setDocument(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDocument();
   }, [documentId]);
 
-  const loadDocument = async () => {
-    try {
-      setLoading(true);
-      const { data, error: fetchError } = await supabase
-        .from('document')
-        .select(`
-          *,
-          document_type:document_type_id (*),
-          process:process_id (*),
-          responsible:created_by (*),
-          versions:document_version (*),
-          approvals:document_approval (*)
-        `)
-        .eq('id', documentId)
-        .single();
-
-      if (fetchError) throw fetchError;
-      setDocument(data);
-    } catch (err) {
-      console.error('Error loading document:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updateDocument = async (updates) => {
-    try {
-      const { data, error: updateError } = await supabase
-        .from('document')
-        .update(updates)
-        .eq('id', documentId)
-        .select()
-        .single();
-
-      if (updateError) throw updateError;
-      
-      setDocument(data);
-      return { success: true, data };
-    } catch (err) {
-      console.error('Error updating document:', err);
-      return { success: false, error: err.message };
-    }
-  };
-
-  const approveDocument = async () => {
-    return await updateDocument({ 
-      status: 'published',
-      updated_at: new Date().toISOString()
-    });
-  };
-
-  const rejectDocument = async (reason) => {
-    return await updateDocument({ 
-      status: 'draft',
-      change_reason: reason,
-      updated_at: new Date().toISOString()
-    });
-  };
-
-  return {
-    document,
-    loading,
-    error,
-    updateDocument,
-    approveDocument,
-    rejectDocument,
-    refresh: loadDocument
-  };
-}
+  return { document, loading, error };
+};

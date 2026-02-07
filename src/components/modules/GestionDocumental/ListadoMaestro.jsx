@@ -1,8 +1,10 @@
 // src/components/modules/GestionDocumental/ListadoMaestro.jsx
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useDocuments, useDocumentTypes, useProcesses } from '@/hooks/useDocuments';
 import { useFileDownload } from '@/hooks/useFileDownload';
-import ApprovalModal from './ApprovalModal'; // ⬅️ NUEVO
+import ApprovalModal from './ApprovalModal';
+import EditDocumentModal from './EditDocumentModal'; // ⬅️ UN SOLO MODAL PARA TODO
+import DocumentViewerModal from './DocumentViewerModal'; // ⬅️ NUEVO: Modal para visualizar documentos
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -29,9 +31,17 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
   const [showFilters, setShowFilters] = useState(false);
   const [expandedProcesses, setExpandedProcesses] = useState({});
   
-  // ⬅️ NUEVO: Estados para el modal de aprobación
+  // Estados para el modal de aprobación
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  
+  // ⬅️ UN SOLO MODAL PARA EDITAR (metadatos Y/O archivo)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [documentToEdit, setDocumentToEdit] = useState(null);
+
+  // ⬅️ NUEVO: Modal para visualizar documentos
+  const [isViewerModalOpen, setIsViewerModalOpen] = useState(false);
+  const [documentToView, setDocumentToView] = useState(null);
 
   const { 
     documents = [], 
@@ -50,27 +60,57 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
   const { processes = [] } = useProcesses() || {};
   const { downloadDocument, downloading } = useFileDownload();
 
-  // ⬅️ NUEVO: Función para abrir modal de aprobación
+  // Función para abrir modal de aprobación
   const handleOpenApprovalModal = (document) => {
     console.log('📄 Abriendo modal de aprobación para:', document.code);
     setSelectedDocument(document);
     setIsApprovalModalOpen(true);
   };
 
-  // ⬅️ NUEVO: Función para cerrar modal
+  // Función para cerrar modal de aprobación
   const handleCloseApprovalModal = () => {
     setIsApprovalModalOpen(false);
     setSelectedDocument(null);
   };
 
-  // ⬅️ NUEVO: Función cuando se aprueba/rechaza exitosamente
+  // Función cuando se aprueba/rechaza exitosamente
   const handleApprovalSuccess = () => {
     console.log('✅ Aprobación/Rechazo exitoso, refrescando listado...');
-    refresh(); // Refrescar el listado
+    refresh();
   };
 
-  // Agrupar documentos por proceso
-  const groupedByProcess = documents.reduce((acc, doc) => {
+  // ⬅️ NUEVO: Función para abrir modal de edición
+  // Se usa tanto para EDITAR (✏️) como para CAMBIAR ARCHIVO (🔄)
+  const handleOpenEditModal = (document) => {
+    console.log('📝 Abriendo modal de edición para:', document.code);
+    setDocumentToEdit(document);
+    setIsEditModalOpen(true);
+  };
+
+  // ⬅️ NUEVO: Abrir modal de visualización
+  const handleOpenViewerModal = (document) => {
+    console.log('👁️ Abriendo visor para:', document.code);
+    setDocumentToView(document);
+    setIsViewerModalOpen(true);
+  };
+
+  // ⬅️ NUEVO: Función para cerrar modal de edición
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setDocumentToEdit(null);
+  };
+
+  // ⬅️ NUEVO: Función cuando se edita exitosamente
+  const handleEditSuccess = () => {
+    console.log('✅ Edición exitosa, refrescando listado...');
+    refresh();
+  };
+
+  // Filtrar documentos archivados ⬅️ NUEVO: Excluir archivados del listado
+  const activeDocuments = documents.filter(doc => doc.status !== 'archived');
+
+  // Agrupar documentos por proceso (solo documentos activos)
+  const groupedByProcess = activeDocuments.reduce((acc, doc) => {
     const processName = doc?.process?.name || 'Sin Proceso';
     if (!acc[processName]) {
       acc[processName] = [];
@@ -191,239 +231,223 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
           {/* Search and Filters */}
           <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-4 w-4" style={{ color: '#6f7b2c' }} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Buscar por código, nombre o responsable..."
+                placeholder="Buscar por código, nombre o descripción..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
-            <Button variant="outline" style={{ borderColor: '#6dbd96' }} onClick={() => setShowFilters(!showFilters)}>
+
+            <Button
+              onClick={() => setShowFilters(!showFilters)}
+              variant="outline"
+              className="shrink-0"
+            >
               <Filter className="h-4 w-4 mr-2" />
-              Filtros
+              Filtros {showFilters ? '▼' : '▶'}
             </Button>
-            <Button variant="outline" onClick={refresh} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+
+            <Button onClick={refresh} variant="outline" className="shrink-0">
+              <RefreshCw className="h-4 w-4 mr-2" />
               Actualizar
-            </Button>
-            <Button variant="outline" onClick={expandAll} size="sm">
-              Expandir Todos
-            </Button>
-            <Button variant="outline" onClick={collapseAll} size="sm">
-              Colapsar Todos
             </Button>
           </div>
 
           {/* Filters Panel */}
           {showFilters && (
-            <div className="p-4 rounded-lg space-y-3" style={{ backgroundColor: '#dedecc' }}>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-sm font-medium mb-1 block" style={{ color: '#2e5244' }}>
-                    Tipo de Documento
-                  </label>
-                  <select
-                    value={selectedType || ''}
-                    onChange={(e) => setSelectedType(e.target.value || null)}
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  >
-                    <option value="">Todos</option>
-                    {documentTypes.map(type => (
-                      <option key={type.id} value={type.id}>{type.name} ({type.code})</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-1 block" style={{ color: '#2e5244' }}>
-                    Proceso
-                  </label>
-                  <select
-                    value={selectedProcess || ''}
-                    onChange={(e) => setSelectedProcess(e.target.value || null)}
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  >
-                    <option value="">Todos</option>
-                    {processes.map(proc => (
-                      <option key={proc.id} value={proc.id}>{proc.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-1 block" style={{ color: '#2e5244' }}>
-                    Estado
-                  </label>
-                  <select
-                    value={selectedStatus || ''}
-                    onChange={(e) => setSelectedStatus(e.target.value || null)}
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  >
-                    <option value="">Todos</option>
-                    <option value="draft">Borrador</option>
-                    <option value="pending_approval">Pendiente</option>
-                    <option value="published">Publicado</option>
-                    <option value="archived">Archivado</option>
-                  </select>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-4 bg-gray-50 rounded-lg border">
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Tipo</label>
+                <select
+                  value={selectedType || ''}
+                  onChange={(e) => setSelectedType(e.target.value || null)}
+                  className="w-full p-2 border rounded text-sm"
+                >
+                  <option value="">Todos</option>
+                  {documentTypes.map(type => (
+                    <option key={type.id} value={type.id}>{type.name}</option>
+                  ))}
+                </select>
               </div>
-              <div className="flex justify-end">
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  Limpiar filtros
+
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Proceso</label>
+                <select
+                  value={selectedProcess || ''}
+                  onChange={(e) => setSelectedProcess(e.target.value || null)}
+                  className="w-full p-2 border rounded text-sm"
+                >
+                  <option value="">Todos</option>
+                  {processes.map(proc => (
+                    <option key={proc.id} value={proc.id}>{proc.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Estado</label>
+                <select
+                  value={selectedStatus || ''}
+                  onChange={(e) => setSelectedStatus(e.target.value || null)}
+                  className="w-full p-2 border rounded text-sm"
+                >
+                  <option value="">Todos</option>
+                  <option value="draft">Borrador</option>
+                  <option value="pending_approval">Pendiente</option>
+                  <option value="published">Publicado</option>
+                  <option value="archived">Archivado</option>
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <Button onClick={clearFilters} variant="outline" size="sm" className="w-full">
+                  Limpiar Filtros
                 </Button>
               </div>
             </div>
           )}
 
-          {/* Table - EXACTAMENTE COMO EL EXCEL */}
-          <div className="overflow-x-auto border rounded-lg" style={{ borderColor: '#dedecc' }}>
+          {/* Actions */}
+          <div className="flex gap-2">
+            <Button onClick={expandAll} variant="ghost" size="sm">
+              Expandir Todo
+            </Button>
+            <Button onClick={collapseAll} variant="ghost" size="sm">
+              Contraer Todo
+            </Button>
+          </div>
+
+          {/* Table */}
+          <div className="overflow-x-auto border rounded-lg">
             {loading ? (
-              <div className="text-center py-8">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" style={{ color: '#6dbd96' }} />
-                <p style={{ color: '#6f7b2c' }}>Cargando documentos...</p>
+              <div className="flex items-center justify-center p-12">
+                <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#6dbd96' }} />
+                <span className="ml-3 text-gray-600">Cargando documentos...</span>
               </div>
             ) : documents.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText className="h-12 w-12 mx-auto mb-2" style={{ color: '#dedecc' }} />
-                <p style={{ color: '#6f7b2c' }}>No se encontraron documentos</p>
-                <Button variant="outline" className="mt-4" onClick={onCreateNew}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Crear primer documento
-                </Button>
+              <div className="text-center p-12 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No se encontraron documentos</p>
               </div>
             ) : (
-              <table className="w-full text-xs">
-                <thead style={{ backgroundColor: '#f8f9fa' }}>
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs uppercase" style={{ color: '#2e5244' }}>
                   <tr>
-                    <th className="text-left p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '80px' }}>
-                      PROCESO
-                    </th>
-                    <th className="text-left p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '100px' }}>
-                      CÓDIGO
-                    </th>
-                    <th className="text-left p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '200px' }}>
-                      NOMBRE DEL DOCUMENTO
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '50px' }}>
-                      VER
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '90px' }}>
-                      FECHA
-                    </th>
-                    <th className="text-left p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '120px' }}>
-                      RESPONSABLE
-                    </th>
-                    <th className="text-left p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '150px' }}>
-                      UBICACIÓN
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '40px' }}>
-                      M
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '40px' }}>
-                      F
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '50px' }}>
-                      CENT
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '40px' }}>
-                      GEST
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '40px' }}>
-                      CT
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '40px' }}>
-                      S
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '40px' }}>
-                      E
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '90px' }}>
-                      F. CAMBIO
-                    </th>
-                    <th className="text-left p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '150px' }}>
-                      MOTIVO CAMBIO
-                    </th>
-                    <th className="text-center p-2 font-semibold border-r" style={{ color: '#2e5244', minWidth: '80px' }}>
-                      ESTADO
-                    </th>
-                    <th className="text-center p-2 font-semibold" style={{ color: '#2e5244', minWidth: '100px' }}>
-                      ACCIONES
-                    </th>
+                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}></th>
+                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}>Código</th>
+                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}>Nombre Documento</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Tipo</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Versión</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Fecha Creación</th>
+                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}>Responsable</th>
+                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}>Ubicación</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Magnético</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Físico</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Ret. Central</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Ret. Gestión</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Cons. Total</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Selección</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Eliminación</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Fecha Cambio</th>
+                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}>Motivo Cambio</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Estado</th>
+                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(groupedByProcess).map(([processName, docs]) => (
-                    <>
-                      {/* Fila de proceso (header colapsable) */}
+                  {Object.entries(groupedByProcess).map(([processName, processDocs]) => (
+                    <React.Fragment key={processName}>
+                      {/* Fila de encabezado de proceso */}
                       <tr 
-                        key={`process-${processName}`}
-                        className="cursor-pointer hover:bg-gray-50"
-                        style={{ backgroundColor: '#e8f5f0' }}
+                        className="cursor-pointer hover:bg-gray-50 transition-colors"
                         onClick={() => toggleProcess(processName)}
+                        style={{ backgroundColor: '#f0f4e8' }}
                       >
-                        <td colSpan="18" className="p-3 font-semibold" style={{ color: '#2e5244' }}>
+                        <td colSpan="19" className="p-3 border-b" style={{ borderColor: '#dedecc' }}>
                           <div className="flex items-center gap-2">
                             {expandedProcesses[processName] ? (
-                              <ChevronDown className="h-4 w-4" />
+                              <ChevronDown className="h-4 w-4" style={{ color: '#2e5244' }} />
                             ) : (
-                              <ChevronRight className="h-4 w-4" />
+                              <ChevronRight className="h-4 w-4" style={{ color: '#2e5244' }} />
                             )}
-                            <span className="text-sm">
-                              {processName.toUpperCase()}
+                            <FileText className="h-4 w-4" style={{ color: '#6dbd96' }} />
+                            <span className="font-bold" style={{ color: '#2e5244' }}>
+                              {processName}
                             </span>
-                            <Badge 
-                              variant="outline"
-                              style={{ borderColor: '#6dbd96', color: '#2e5244', fontSize: '10px' }}
-                            >
-                              {docs.length} {docs.length === 1 ? 'documento' : 'documentos'}
-                            </Badge>
+                            <span className="text-xs text-gray-600 ml-2">
+                              ({processDocs.length} documento{processDocs.length !== 1 ? 's' : ''})
+                            </span>
                           </div>
                         </td>
                       </tr>
 
-                      {/* Filas de documentos (si está expandido) */}
-                      {expandedProcesses[processName] && docs.map((doc) => (
+                      {/* Filas de documentos */}
+                      {expandedProcesses[processName] && processDocs.map((doc) => {
+                        // 🔍 Validación de datos para prevenir errores de renderizado
+                        if (typeof doc.created_by_profile !== 'undefined' && typeof doc.created_by_profile !== 'string') {
+                          console.warn('⚠️ created_by_profile es un objeto:', doc.created_by_profile);
+                        }
+                        
+                        return (
                         <tr 
-                          key={doc.id}
-                          className="border-b hover:bg-gray-50 transition-colors"
+                          key={doc.id} 
+                          className="hover:bg-gray-50 transition-colors border-b"
                           style={{ borderColor: '#dedecc' }}
                         >
-                          {/* PROCESO */}
-                          <td className="p-2 text-xs border-r" style={{ color: '#6f7b2c' }}>
-                            {doc.process?.code || '-'}
-                          </td>
+                          <td className="p-2"></td>
 
                           {/* CÓDIGO */}
                           <td className="p-2 border-r">
-                            <span className="font-mono font-medium text-xs" style={{ color: '#2e5244' }}>
+                            <span className="font-mono text-xs font-bold" style={{ color: '#2e5244' }}>
                               {doc.code}
                             </span>
                           </td>
 
                           {/* NOMBRE */}
                           <td className="p-2 border-r">
-                            <span className="text-xs" style={{ color: '#2e5244' }}>
-                              {doc.name}
+                            <div>
+                              <p className="font-medium text-sm" style={{ color: '#2e5244' }}>
+                                {doc.name}
+                              </p>
+                              {doc.objective && (
+                                <p className="text-xs text-gray-600 line-clamp-1 mt-1">
+                                  {doc.objective}
+                                </p>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* TIPO */}
+                          <td className="p-2 text-center border-r">
+                            <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: '#f0f4e8', color: '#6f7b2c' }}>
+                              {doc.document_type?.code || doc.document_type_code || '-'}
                             </span>
                           </td>
 
                           {/* VERSIÓN */}
                           <td className="p-2 text-center border-r">
                             <span className="text-xs font-medium" style={{ color: '#6f7b2c' }}>
-                              v{String(doc.version).padStart(2, '0')}
+                              v{String(doc.version || doc.current_version || 1).padStart(2, '0')}
                             </span>
                           </td>
 
                           {/* FECHA CREACIÓN */}
                           <td className="p-2 text-center text-xs text-gray-600 border-r">
-                            {doc.change_date ? new Date(doc.change_date).toLocaleDateString('es-CO') : 
-                             new Date(doc.created_at).toLocaleDateString('es-CO')}
+                            {(() => {
+                              try {
+                                const date = doc.change_date || doc.created_at;
+                                return date ? new Date(date).toLocaleDateString('es-CO') : '-';
+                              } catch (e) {
+                                return '-';
+                              }
+                            })()}
                           </td>
 
                           {/* RESPONSABLE */}
                           <td className="p-2 text-xs text-gray-600 border-r">
-                            {doc.created_by_profile?.full_name || 'Por definir'}
+                            {doc.responsible || (typeof doc.created_by_profile === 'object' ? doc.created_by_profile?.full_name : doc.created_by_profile) || 'Por definir'}
                           </td>
 
                           {/* UBICACIÓN */}
@@ -492,7 +516,13 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
 
                           {/* FECHA DE CAMBIO */}
                           <td className="p-2 text-center text-xs text-gray-600 border-r">
-                            {doc.change_date ? new Date(doc.change_date).toLocaleDateString('es-CO') : '-'}
+                            {(() => {
+                              try {
+                                return doc.change_date ? new Date(doc.change_date).toLocaleDateString('es-CO') : '-';
+                              } catch (e) {
+                                return '-';
+                              }
+                            })()}
                           </td>
 
                           {/* MOTIVO DE CAMBIO */}
@@ -504,12 +534,12 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                             ) : '-'}
                           </td>
 
-                          {/* ESTADO - ⬅️ MODIFICADO: Badge clickeable si está pendiente */}
+                          {/* ESTADO - Badge clickeable si está pendiente */}
                           <td className="p-2 text-center border-r">
                             {doc.status === 'pending_approval' ? (
                               <button
                                 onClick={(e) => {
-                                  e.stopPropagation(); // Evitar conflictos con otros clicks
+                                  e.stopPropagation();
                                   handleOpenApprovalModal(doc);
                                 }}
                                 className="hover:scale-105 transition-transform cursor-pointer"
@@ -529,23 +559,36 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                               <Button 
                                 size="sm" 
                                 variant="ghost" 
-                                onClick={() => onView && onView(doc)} 
+                                onClick={() => handleOpenViewerModal(doc)}
                                 className="h-7 w-7 p-0"
-                                title="Ver detalles"
+                                title="Ver documento"
                               >
                                 <Eye className="h-3 w-3" style={{ color: '#6dbd96' }} />
                               </Button>
 
-                              {/* Botón EDITAR */}
+                              {/* Botón EDITAR - Usa el MISMO modal */}
                               <Button 
                                 size="sm" 
                                 variant="ghost" 
-                                onClick={() => onEdit && onEdit(doc)} 
+                                onClick={() => handleOpenEditModal(doc)}
                                 className="h-7 w-7 p-0"
-                                title="Editar documento"
+                                title="Editar metadatos y/o archivo"
                               >
                                 <Edit className="h-3 w-3" style={{ color: '#2e5244' }} />
                               </Button>
+
+                              {/* Botón CAMBIAR ARCHIVO - Usa el MISMO modal */}
+                              {doc.status === 'published' && (
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  onClick={() => handleOpenEditModal(doc)}
+                                  className="h-7 w-7 p-0"
+                                  title="Cambiar archivo (requiere aprobación)"
+                                >
+                                  <RefreshCw className="h-3 w-3" style={{ color: '#d97706' }} />
+                                </Button>
+                              )}
 
                               {/* Botón DESCARGAR */}
                               <Button 
@@ -571,8 +614,9 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                             </div>
                           </td>
                         </tr>
-                      ))}
-                    </>
+                        );
+                      })}
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
@@ -588,12 +632,30 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
         </CardContent>
       </Card>
 
-      {/* ⬅️ NUEVO: Modal de Aprobación */}
+      {/* Modal de Aprobación */}
       <ApprovalModal
         document={selectedDocument}
         isOpen={isApprovalModalOpen}
         onClose={handleCloseApprovalModal}
         onSuccess={handleApprovalSuccess}
+      />
+
+      {/* ⬅️ UN SOLO MODAL para editar TODO (metadatos y/o archivo) */}
+      <EditDocumentModal
+        document={documentToEdit}
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
+        onSuccess={handleEditSuccess}
+      />
+
+      {/* ⬅️ NUEVO: Modal para visualizar documentos */}
+      <DocumentViewerModal
+        document={documentToView}
+        isOpen={isViewerModalOpen}
+        onClose={() => {
+          setIsViewerModalOpen(false);
+          setDocumentToView(null);
+        }}
       />
     </div>
   );

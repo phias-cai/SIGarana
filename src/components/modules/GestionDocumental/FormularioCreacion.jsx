@@ -46,6 +46,7 @@ export default function FormularioCreacion({
     name: '',
     objective: '',
     scope: '',
+    responsible: '', // ⬅️ NUEVO: Campo responsable
     document_type_id: '',
     process_id: '',
     storage_location: '',
@@ -270,6 +271,7 @@ export default function FormularioCreacion({
           name: formData.name,
           objective: formData.objective || null,
           scope: formData.scope || null,
+          responsible: formData.responsible || null, // ⬅️ NUEVO: Campo responsable
           document_type_id: formData.document_type_id,
           process_id: formData.process_id,
           file_path: uploadData.path,
@@ -628,6 +630,21 @@ export default function FormularioCreacion({
               placeholder="Alcance del documento..."
               rows={2}
             />
+          </div>
+
+          {/* Responsable */}
+          <div>
+            <Label htmlFor="responsible">Responsable</Label>
+            <Input
+              id="responsible"
+              name="responsible"
+              value={formData.responsible}
+              onChange={handleChange}
+              placeholder="Ej: Gerente General, Jefe de SST..."
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Cargo o rol responsable del documento
+            </p>
           </div>
         </CardContent>
       </Card>

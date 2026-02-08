@@ -1,5 +1,5 @@
 // src/components/modules/GestionDocumental.jsx
-// ✅ VERSIÓN CORREGIDA - Encoding UTF-8 correcto
+// ✅ VERSIÓN ACTUALIZADA - Con PorArea integrado
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -9,30 +9,26 @@ import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
 import ListadoMaestro from './GestionDocumental/ListadoMaestro';
 import FormularioCreacion from './GestionDocumental/FormularioCreacion';
+import PorArea from './GestionDocumental/PorArea';
 import { 
   FileText, 
   FolderOpen,
   Building2,
   FileStack,
   ArrowLeft,
-  Edit,
-  Eye,
-  CheckSquare,
-  Plus
+  Plus,
+  CheckSquare
 } from 'lucide-react';
 
 export default function GestionDocumental() {
   const { permissions } = useAuth();
-  const [activeView, setActiveView] = useState('dashboard'); // dashboard, formatos, listado, areas, procedimientos, create
+  const [activeView, setActiveView] = useState('dashboard');
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [lastCreatedDocument, setLastCreatedDocument] = useState(null);
-
-  // 🔥 Estado para datos maestros
   const [documentTypes, setDocumentTypes] = useState([]);
   const [processes, setProcesses] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
-  // 🔥 Cargar datos al montar
   useEffect(() => {
     loadMasterData();
   }, []);
@@ -41,7 +37,6 @@ export default function GestionDocumental() {
     try {
       setLoadingData(true);
       
-      // Cargar tipos de documentos
       const { data: types, error: typesError } = await supabase
         .from('document_type')
         .select('*')
@@ -49,10 +44,8 @@ export default function GestionDocumental() {
         .order('display_order');
 
       if (typesError) throw typesError;
-      console.log('✅ Document types cargados:', types?.length || 0);
       setDocumentTypes(types || []);
 
-      // Cargar procesos
       const { data: procs, error: procsError } = await supabase
         .from('process')
         .select('*')
@@ -60,17 +53,15 @@ export default function GestionDocumental() {
         .order('display_order');
 
       if (procsError) throw procsError;
-      console.log('✅ Processes cargados:', procs?.length || 0);
       setProcesses(procs || []);
 
     } catch (err) {
-      console.error('❌ Error cargando datos:', err);
+      console.error('Error cargando datos:', err);
     } finally {
       setLoadingData(false);
     }
   };
 
-  // Verificar permisos
   const canView = permissions?.includes('gestion_documental:view') || 
                   permissions?.includes('*:*:*');
   const canCreate = permissions?.includes('gestion_documental:create') || 
@@ -91,7 +82,6 @@ export default function GestionDocumental() {
     );
   }
 
-  // Funciones de navegación
   const handleCardClick = (view) => {
     setActiveView(view);
   };
@@ -103,11 +93,9 @@ export default function GestionDocumental() {
   };
 
   const handleCreateSuccess = (document) => {
-    console.log('✅ Documento creado exitosamente:', document);
     setLastCreatedDocument(document);
     setShowSuccessMessage(true);
     
-    // Después de 3 segundos, ir al listado maestro
     setTimeout(() => {
       setShowSuccessMessage(false);
       setActiveView('listado');
@@ -118,13 +106,11 @@ export default function GestionDocumental() {
     setActiveView('dashboard');
   };
 
-  // Renderizar vista actual
   const renderActiveView = () => {
     switch (activeView) {
       case 'dashboard':
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Card 1: Formatos */}
             <Card 
               className="border-2 hover:shadow-lg transition-all cursor-pointer"
               style={{ borderColor: '#6dbd96' }}
@@ -144,7 +130,6 @@ export default function GestionDocumental() {
               </CardContent>
             </Card>
 
-            {/* Card 2: Listado Maestro */}
             <Card 
               className="border-2 hover:shadow-lg transition-all cursor-pointer"
               style={{ borderColor: '#2e5244' }}
@@ -164,7 +149,6 @@ export default function GestionDocumental() {
               </CardContent>
             </Card>
 
-            {/* Card 3: Por Área */}
             <Card 
               className="border-2 hover:shadow-lg transition-all cursor-pointer"
               style={{ borderColor: '#6f7b2c' }}
@@ -184,7 +168,6 @@ export default function GestionDocumental() {
               </CardContent>
             </Card>
 
-            {/* Card 4: Procedimientos */}
             <Card 
               className="border-2 hover:shadow-lg transition-all cursor-pointer"
               style={{ borderColor: '#d97706' }}
@@ -204,7 +187,6 @@ export default function GestionDocumental() {
               </CardContent>
             </Card>
 
-            {/* Botón de Crear Nuevo (si tiene permisos) */}
             {canCreate && (
               <Card 
                 className="border-2 border-dashed hover:shadow-lg transition-all cursor-pointer"
@@ -243,7 +225,6 @@ export default function GestionDocumental() {
       case 'create':
         return (
           <div className="space-y-6">
-            {/* Mensaje de éxito temporal */}
             {showSuccessMessage && lastCreatedDocument && (
               <Card className="border-2" style={{ borderColor: '#6dbd96', backgroundColor: '#f0fdf4' }}>
                 <CardContent className="p-4">
@@ -287,19 +268,7 @@ export default function GestionDocumental() {
         );
       
       case 'areas':
-        return (
-          <Card className="border-2" style={{ borderColor: '#6f7b2c' }}>
-            <CardContent className="p-8 text-center">
-              <Building2 className="h-16 w-16 mx-auto mb-4" style={{ color: '#6f7b2c' }} />
-              <h3 className="text-2xl font-bold mb-2" style={{ color: '#2e5244' }}>
-                Documentos por Área
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Próximamente: Vista organizada por departamentos y procesos
-              </p>
-            </CardContent>
-          </Card>
-        );
+        return <PorArea />;
       
       case 'procedimientos':
         return (
@@ -323,7 +292,6 @@ export default function GestionDocumental() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header con breadcrumb */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           {activeView !== 'dashboard' && (
@@ -350,14 +318,13 @@ export default function GestionDocumental() {
                 : activeView === 'formatos'
                 ? 'Biblioteca de formatos y plantillas'
                 : activeView === 'areas'
-                ? 'Documentos organizados por área'
+                ? 'Documentos organizados por área y proceso'
                 : 'Lista de procedimientos del sistema'
               }
             </p>
           </div>
         </div>
 
-        {/* Acciones rápidas en el header */}
         {activeView === 'dashboard' && canCreate && (
           <Button
             onClick={() => setActiveView('create')}
@@ -370,7 +337,6 @@ export default function GestionDocumental() {
         )}
       </div>
 
-      {/* Contenido dinámico */}
       {renderActiveView()}
     </div>
   );

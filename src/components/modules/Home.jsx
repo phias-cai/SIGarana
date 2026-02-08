@@ -154,9 +154,7 @@ const testConnection = async () => {
           </div>
         </CardContent>
       </Card>
-      <button onClick={testConnection}>
-        aqui
-      </button>
+     
     </div>
   );
 }

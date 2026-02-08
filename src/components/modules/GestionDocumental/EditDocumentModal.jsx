@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Upload, FileText, Save, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../context/AuthContext';
+import { useDocumentActions } from '../../../hooks/useDocumentActions';
 
 /**
  * Modal unificado para editar documentos
@@ -13,6 +14,8 @@ import { useAuth } from '../../../context/AuthContext';
  */
 const EditDocumentModal = ({ document, isOpen, onClose, onSuccess }) => {
   const { user } = useAuth();
+  const { notifyManagers } = useDocumentActions(); // 🆕 AGREGAR ESTA LÍNEA
+  
   
   // Estados del formulario (valores por defecto para evitar warnings)
   const [formData, setFormData] = useState({
@@ -250,18 +253,18 @@ const EditDocumentModal = ({ document, isOpen, onClose, onSuccess }) => {
       console.log('✅ Nueva versión creada:', newVersion.id);
 
       // Crear notificación para gerencia
-      const { error: notifError } = await supabase.rpc('notify_gerencia', {
-        p_type: 'approval_request',
-        p_title: '📝 Solicitud de Aprobación de Cambio',
-        p_message: `${user?.email || 'Usuario'} ha modificado el archivo del documento "${document.name}" (${document.code}). Motivo: ${changeReason}`,
-        p_document_id: newVersion.id
-      });
+  // 🆕 Notificar a gerentes por email
+      const { data: creatorProfile } = await supabase
+        .from('profile')
+        .select('full_name, email')
+        .eq('id', user.id)
+        .single();
 
-      if (notifError) {
-        console.warn('⚠️ Error creando notificación:', notifError);
-      } else {
-        console.log('📧 Notificación enviada a gerencia');
-      }
+      const creatorName = creatorProfile?.full_name || user.email || 'Usuario';
+
+      await notifyManagers(newVersion, creatorName);
+
+      console.log('📧 Gerentes notificados por email');
 
       return newVersion;
     } catch (err) {

@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { useDocumentActions } from '@/hooks/useDocumentActions'; // 🆕 AGREGAR ESTA LÍNEA
 import { useDocumentCode } from '@/hooks/useDocumentCode';
 import { generateWordTemplate } from '../../../utils/generateWordTemplate';
 import { generateExcelTemplate } from '../../../utils/generateExcelTemplate';
@@ -27,6 +28,7 @@ export default function FormularioCreacion({
 }) {
   const { user } = useAuth();
   const { getNextCode, checkCodeExists, validateCodeFormat } = useDocumentCode();
+  const { notifyManagers } = useDocumentActions(); // 🆕 AGREGAR ESTA LÍNEA
   
   // Estado para controlar si es formato nuevo
   const [isNewFormat, setIsNewFormat] = useState(false);
@@ -294,7 +296,23 @@ export default function FormularioCreacion({
 
       if (dbError) throw dbError;
 
-      console.log('✅ Documento creado:', document);
+      // 🆕 Enviar notificaciones por email si es formato nuevo
+      if (isNewFormat && documentStatus === 'pending_approval') {
+        console.log('📧 Enviando notificaciones a gerentes...');
+        
+        // Obtener nombre completo del usuario
+        const { data: profile } = await supabase
+          .from('profile')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+
+        const creatorName = profile?.full_name || user.email || 'Usuario';
+
+        // Enviar emails a gerentes
+        await notifyManagers(document, creatorName);
+      }
+
       setSuccess(true);
       
       if (onSuccess) {

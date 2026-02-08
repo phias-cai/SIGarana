@@ -1,20 +1,119 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
 
 /**
- * Hook para manejar acciones sobre documentos (aprobar/rechazar)
- * Usado principalmente por gerencia para gestionar documentos pendientes
+ * Hook para manejar acciones sobre documentos (aprobar/rechazar) + EMAILS
+ * ✅ VERSIÓN FINAL - SIN HEADERS (como el test exitoso en consola)
  */
 export const useDocumentActions = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // ==========================================
+  // FUNCIONES DE EMAIL
+  // ==========================================
+
+  /**
+   * ✅ Enviar email SIN headers de autenticación
+   * (Igual que el test exitoso en consola)
+   */
+  const sendEmail = async (type, recipients, documentData, rejectionReason = null) => {
+    try {
+      console.log(`📧 Enviando email tipo "${type}" a:`, recipients);
+
+      // ✅ SIN HEADERS - Exactamente como el test que funcionó
+      const { data, error } = await supabase.functions.invoke('send-email', {
+        body: {
+          type,
+          to: recipients,
+          document: documentData,
+          rejection_reason: rejectionReason,
+        },
+      });
+
+      if (error) {
+        console.error('❌ Error al enviar email:', error);
+        throw error;
+      }
+
+      console.log('✅ Email enviado correctamente:', data);
+      return { success: true, data };
+    } catch (error) {
+      console.error('❌ Error en sendEmail:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  /**
+   * Obtener emails de todos los gerentes activos
+   */
+  const getManagerEmails = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profile')
+        .select('email')
+        .eq('role', 'gerencia')
+        .eq('is_active', true);
+
+      if (error) {
+        console.error('❌ Error al obtener gerentes:', error);
+        return [];
+      }
+
+      const emails = data.map(profile => profile.email).filter(Boolean);
+      console.log('📧 Emails de gerentes encontrados:', emails);
+      return emails;
+    } catch (error) {
+      console.error('❌ Error en getManagerEmails:', error);
+      return [];
+    }
+  };
+
+  /**
+   * Notificar a gerentes cuando se crea o edita un documento
+   */
+  const notifyManagers = async (document, creatorName) => {
+    try {
+      const managerEmails = await getManagerEmails();
+
+      if (managerEmails.length === 0) {
+        console.warn('⚠️ No se encontraron gerentes para notificar');
+        return { success: false, message: 'No hay gerentes para notificar' };
+      }
+
+      const documentData = {
+        id: document.id,
+        name: document.name,
+        code: document.code,
+        version: document.version,
+        created_by_name: creatorName,
+      };
+
+      const result = await sendEmail('pending', managerEmails, documentData);
+
+      if (result.success) {
+        toast.success(
+          `Notificación enviada a ${managerEmails.length} gerente(s)`,
+          { duration: 3000 }
+        );
+      } else {
+        toast.warning('Documento guardado, pero no se pudo enviar la notificación');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('❌ Error en notifyManagers:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  // ==========================================
+  // FUNCIONES ORIGINALES
+  // ==========================================
+
   /**
    * Aprobar un documento
-   * - Cambia estado a 'published'
-   * - Archiva versión anterior si existe (parent_document_id)
-   * - Crea notificación para el creador
-   * - Actualiza fecha de cambio
    */
   const approveDocument = async (documentId) => {
     setLoading(true);
@@ -23,10 +122,9 @@ export const useDocumentActions = () => {
     try {
       console.log('🟢 Aprobando documento:', documentId);
 
-      // 1. Obtener información del documento antes de actualizar
       const { data: document, error: fetchError } = await supabase
         .from('document')
-        .select('code, name, version, created_by, parent_document_id') // ⬅️ AGREGADO: version y parent_document_id
+        .select('code, name, version, created_by, parent_document_id')
         .eq('id', documentId)
         .single();
 
@@ -34,7 +132,6 @@ export const useDocumentActions = () => {
 
       console.log('📄 Documento encontrado:', document);
 
-      // 1.5 ⬅️ NUEVO: Si tiene parent_document_id, archivar la versión anterior
       if (document.parent_document_id) {
         console.log('📦 Archivando versión anterior:', document.parent_document_id);
         
@@ -48,13 +145,11 @@ export const useDocumentActions = () => {
 
         if (archiveError) {
           console.error('⚠️ Error archivando versión anterior:', archiveError);
-          // No lanzar error, continuar con aprobación
         } else {
           console.log('✅ Versión anterior archivada correctamente');
         }
       }
 
-      // 2. Actualizar estado del documento a 'published'
       const { error: updateError } = await supabase
         .from('document')
         .update({
@@ -68,11 +163,10 @@ export const useDocumentActions = () => {
 
       console.log('✅ Estado actualizado a published');
 
-      // 3. Crear notificación para el creador usando función SQL
       const { data: notificationId, error: notificationError } = await supabase
         .rpc('create_approval_notification', {
           p_user_id: document.created_by,
-          p_type: 'approved',  // ⬅️ Tipo correcto según CHECK constraint
+          p_type: 'approved',
           p_title: '✅ Documento Aprobado',
           p_message: `Tu documento "${document.name}" (${document.code}) versión ${document.version} ha sido aprobado y está ahora publicado.`,
           p_document_id: documentId
@@ -80,10 +174,27 @@ export const useDocumentActions = () => {
 
       if (notificationError) {
         console.warn('⚠️ Error creando notificación:', notificationError);
-        // No lanzamos error, la aprobación ya se hizo
       } else {
         console.log('🔔 Notificación creada con ID:', notificationId);
-        console.log('📧 Notificación enviada a user_id:', document.created_by);
+      }
+
+      // Enviar email al creador
+      const { data: creatorProfile } = await supabase
+        .from('profile')
+        .select('full_name, email')
+        .eq('id', document.created_by)
+        .single();
+
+      if (creatorProfile?.email) {
+        const documentData = {
+          id: documentId,
+          name: document.name,
+          code: document.code,
+          version: document.version,
+          created_by_name: creatorProfile.full_name || 'Usuario',
+        };
+
+        await sendEmail('approved', creatorProfile.email, documentData);
       }
 
       return { success: true, data: document };
@@ -99,9 +210,6 @@ export const useDocumentActions = () => {
 
   /**
    * Rechazar un documento
-   * - Si es NUEVO (v1, sin parent) → Cambiar a DRAFT (puede corregir)
-   * - Si es EDICIÓN (v2+, con parent) → ELIMINAR (original sigue publicado)
-   * - Crea notificación para el creador con el motivo
    */
   const rejectDocument = async (documentId, reason = '') => {
     setLoading(true);
@@ -111,15 +219,13 @@ export const useDocumentActions = () => {
       console.log('🔴 Rechazando documento:', documentId);
       console.log('📝 Motivo:', reason);
 
-      // Validar que haya motivo
       if (!reason || reason.trim() === '') {
         throw new Error('El motivo del rechazo es obligatorio');
       }
 
-      // 1. Obtener información del documento
       const { data: document, error: fetchError } = await supabase
         .from('document')
-        .select('code, name, version, created_by, file_path, parent_document_id') // ⬅️ Agregado parent_document_id y version
+        .select('code, name, version, created_by, file_path, parent_document_id')
         .eq('id', documentId)
         .single();
 
@@ -127,13 +233,11 @@ export const useDocumentActions = () => {
 
       console.log('📄 Documento encontrado:', document);
 
-      // Detectar si es documento nuevo o edición
       const isNewDocument = !document.parent_document_id;
       const action = isNewDocument ? 'cambiar a borrador' : 'eliminar';
       
       console.log(`📋 Es documento ${isNewDocument ? 'NUEVO' : 'EDICIÓN'} → Acción: ${action}`);
 
-      // 2. Crear notificación ANTES de modificar/eliminar
       const { data: notificationId, error: notificationError } = await supabase
         .rpc('create_approval_notification', {
           p_user_id: document.created_by,
@@ -147,12 +251,9 @@ export const useDocumentActions = () => {
         console.warn('⚠️ Error creando notificación:', notificationError);
       } else {
         console.log('🔔 Notificación creada con ID:', notificationId);
-        console.log('📧 Notificación enviada a user_id:', document.created_by);
       }
 
-      // 3. Ejecutar acción según tipo de documento
       if (isNewDocument) {
-        // DOCUMENTO NUEVO → Cambiar a DRAFT
         const { error: updateError } = await supabase
           .from('document')
           .update({
@@ -164,9 +265,8 @@ export const useDocumentActions = () => {
 
         if (updateError) throw updateError;
 
-        console.log('📝 Documento cambiado a DRAFT (puede corregir y re-enviar)');
+        console.log('📝 Documento cambiado a DRAFT');
       } else {
-        // EDICIÓN → ELIMINAR (el original sigue publicado)
         const { error: deleteError } = await supabase
           .from('document')
           .delete()
@@ -174,7 +274,26 @@ export const useDocumentActions = () => {
 
         if (deleteError) throw deleteError;
 
-        console.log('🗑️ Edición eliminada (versión original sigue publicada)');
+        console.log('🗑️ Edición eliminada');
+      }
+
+      // Enviar email al creador
+      const { data: creatorProfile } = await supabase
+        .from('profile')
+        .select('full_name, email')
+        .eq('id', document.created_by)
+        .single();
+
+      if (creatorProfile?.email) {
+        const documentData = {
+          id: documentId,
+          name: document.name,
+          code: document.code,
+          version: document.version,
+          created_by_name: creatorProfile.full_name || 'Usuario',
+        };
+
+        await sendEmail('rejected', creatorProfile.email, documentData, reason);
       }
 
       return { success: true, data: document, action };
@@ -191,6 +310,9 @@ export const useDocumentActions = () => {
   return {
     approveDocument,
     rejectDocument,
+    notifyManagers,
+    sendEmail,
+    getManagerEmails,
     loading,
     error
   };

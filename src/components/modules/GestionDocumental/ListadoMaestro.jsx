@@ -332,28 +332,61 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                 <p>No se encontraron documentos</p>
               </div>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-xs uppercase" style={{ color: '#2e5244' }}>
-                  <tr>
-                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}></th>
-                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}>Código</th>
-                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}>Nombre Documento</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Tipo</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Versión</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Fecha Creación</th>
-                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}>Responsable</th>
-                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}>Ubicación</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Magnético</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Físico</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Ret. Central</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Ret. Gestión</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Cons. Total</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Selección</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Eliminación</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Fecha Cambio</th>
-                    <th className="p-3 text-left border-b font-bold" style={{ borderColor: '#dedecc' }}>Motivo Cambio</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Estado</th>
-                    <th className="p-3 text-center border-b font-bold" style={{ borderColor: '#dedecc' }}>Acciones</th>
+              <table className="w-full text-xs">
+                {/* ENCABEZADOS AGRUPADOS (como en Excel) */}
+                <thead>
+                  {/* Fila 1: Grupos principales */}
+                  <tr className="bg-gray-100 text-xs uppercase" style={{ color: '#2e5244' }}>
+                    <th rowSpan="2" className="p-1.5 text-left border font-bold" style={{ borderColor: '#dedecc' }}></th>
+                    <th colSpan="3" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      IDENTIFICACIÓN DE DOCUMENTOS
+                    </th>
+                    <th colSpan="3" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      TIPO DE ARCHIVO
+                    </th>
+                    <th colSpan="3" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      RETENCIÓN DOCUMENTAL
+                    </th>
+                    <th colSpan="3" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      DISPOSICIÓN FINAL
+                    </th>
+                    <th colSpan="3" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      CONTROL DE CAMBIOS
+                    </th>
+                    <th rowSpan="2" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      ESTADO
+                    </th>
+                    <th rowSpan="2" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      ACCIONES
+                    </th>
+                  </tr>
+                  
+                  {/* Fila 2: Columnas específicas */}
+                  <tr className="bg-gray-50 text-[10px] uppercase" style={{ color: '#2e5244' }}>
+                    {/* IDENTIFICACIÓN */}
+                    <th className="p-1.5 text-left border font-medium" style={{ borderColor: '#dedecc' }}>Código</th>
+                    <th className="p-1.5 text-left border font-medium" style={{ borderColor: '#dedecc' }}>Nombre</th>
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Responsable</th>
+                    
+                    {/* TIPO ARCHIVO */}
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Tipo</th>
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Versión</th>
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Fecha</th>
+                    
+                    {/* RETENCIÓN */}
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Central</th>
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Gestión</th>
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Total</th>
+                    
+                    {/* DISPOSICIÓN */}
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Selección</th>
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Conserv.</th>
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Elimin.</th>
+                    
+                    {/* CONTROL CAMBIOS */}
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>F. Cambio</th>
+                    <th className="p-1.5 text-left border font-medium" style={{ borderColor: '#dedecc' }}>Motivo</th>
+                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Ubicación</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -365,18 +398,18 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                         onClick={() => toggleProcess(processName)}
                         style={{ backgroundColor: '#f0f4e8' }}
                       >
-                        <td colSpan="19" className="p-3 border-b" style={{ borderColor: '#dedecc' }}>
+                        <td colSpan="19" className="p-1.5 border" style={{ borderColor: '#dedecc' }}>
                           <div className="flex items-center gap-2">
                             {expandedProcesses[processName] ? (
-                              <ChevronDown className="h-4 w-4" style={{ color: '#2e5244' }} />
+                              <ChevronDown className="h-3.5 w-3.5" style={{ color: '#2e5244' }} />
                             ) : (
-                              <ChevronRight className="h-4 w-4" style={{ color: '#2e5244' }} />
+                              <ChevronRight className="h-3.5 w-3.5" style={{ color: '#2e5244' }} />
                             )}
-                            <FileText className="h-4 w-4" style={{ color: '#6dbd96' }} />
-                            <span className="font-bold" style={{ color: '#2e5244' }}>
+                            <FileText className="h-3.5 w-3.5" style={{ color: '#6dbd96' }} />
+                            <span className="font-bold text-xs" style={{ color: '#2e5244' }}>
                               {processName}
                             </span>
-                            <span className="text-xs text-gray-600 ml-2">
+                            <span className="text-[10px] text-gray-600 ml-1">
                               ({processDocs.length} documento{processDocs.length !== 1 ? 's' : ''})
                             </span>
                           </div>
@@ -393,222 +426,198 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                         return (
                         <tr 
                           key={doc.id} 
-                          className="hover:bg-gray-50 transition-colors border-b"
-                          style={{ borderColor: '#dedecc' }}
+                          className="hover:bg-gray-50 transition-colors"
                         >
-                          <td className="p-2"></td>
+                          {/* COLUMNA VACÍA */}
+                          <td className="p-1 border" style={{ borderColor: '#dedecc' }}></td>
 
+                          {/* === IDENTIFICACIÓN DE DOCUMENTOS === */}
+                          
                           {/* CÓDIGO */}
-                          <td className="p-2 border-r">
-                            <span className="font-mono text-xs font-bold" style={{ color: '#2e5244' }}>
+                          <td className="p-1 border" style={{ borderColor: '#dedecc' }}>
+                            <span className="font-mono text-[10px] font-bold" style={{ color: '#2e5244' }}>
                               {doc.code}
                             </span>
                           </td>
 
                           {/* NOMBRE */}
-                          <td className="p-2 border-r">
-                            <div>
-                              <p className="font-medium text-sm" style={{ color: '#2e5244' }}>
-                                {doc.name}
-                              </p>
-                              {doc.objective && (
-                                <p className="text-xs text-gray-600 line-clamp-1 mt-1">
-                                  {doc.objective}
-                                </p>
-                              )}
-                            </div>
+                          <td className="p-1 border max-w-[200px]" style={{ borderColor: '#dedecc' }}>
+                            <p className="font-medium text-[10px] truncate" style={{ color: '#2e5244' }}>
+                              {doc.name}
+                            </p>
                           </td>
 
+                          {/* RESPONSABLE */}
+                          <td className="p-1 text-[10px] text-gray-600 border" style={{ borderColor: '#dedecc' }}>
+                            <span className="truncate block max-w-[100px]">
+                              {doc.responsible || (typeof doc.created_by_profile === 'object' ? doc.created_by_profile?.full_name : doc.created_by_profile) || '-'}
+                            </span>
+                          </td>
+
+                          {/* === TIPO DE ARCHIVO === */}
+                          
                           {/* TIPO */}
-                          <td className="p-2 text-center border-r">
-                            <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: '#f0f4e8', color: '#6f7b2c' }}>
+                          <td className="p-1 text-center border" style={{ borderColor: '#dedecc' }}>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: '#f0f4e8', color: '#6f7b2c' }}>
                               {doc.document_type?.code || doc.document_type_code || '-'}
                             </span>
                           </td>
 
                           {/* VERSIÓN */}
-                          <td className="p-2 text-center border-r">
-                            <span className="text-xs font-medium" style={{ color: '#6f7b2c' }}>
+                          <td className="p-1 text-center border" style={{ borderColor: '#dedecc' }}>
+                            <span className="text-[10px] font-medium" style={{ color: '#6f7b2c' }}>
                               v{String(doc.version || doc.current_version || 1).padStart(2, '0')}
                             </span>
                           </td>
 
-                          {/* FECHA CREACIÓN */}
-                          <td className="p-2 text-center text-xs text-gray-600 border-r">
+                          {/* FECHA */}
+                          <td className="p-1 text-center text-[10px] text-gray-600 border" style={{ borderColor: '#dedecc' }}>
                             {(() => {
                               try {
                                 const date = doc.change_date || doc.created_at;
-                                return date ? new Date(date).toLocaleDateString('es-CO') : '-';
+                                return date ? new Date(date).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '-';
                               } catch (e) {
                                 return '-';
                               }
                             })()}
                           </td>
 
-                          {/* RESPONSABLE */}
-                          <td className="p-2 text-xs text-gray-600 border-r">
-                            {doc.responsible || (typeof doc.created_by_profile === 'object' ? doc.created_by_profile?.full_name : doc.created_by_profile) || 'Por definir'}
-                          </td>
-
-                          {/* UBICACIÓN */}
-                          <td className="p-2 text-xs text-gray-600 border-r">
-                            {doc.storage_location || '-'}
-                          </td>
-
-                          {/* TIPO ARCHIVO: MAGNÉTICO */}
-                          <td className="p-2 text-center border-r">
-                            {doc.file_type_magnetic ? (
-                              <span className="text-green-600 font-bold">✓</span>
-                            ) : (
-                              <span className="text-gray-300">-</span>
-                            )}
-                          </td>
-
-                          {/* TIPO ARCHIVO: FÍSICO */}
-                          <td className="p-2 text-center border-r">
-                            {doc.file_type_physical ? (
-                              <span className="text-green-600 font-bold">✓</span>
-                            ) : (
-                              <span className="text-gray-300">-</span>
-                            )}
-                          </td>
-
-                          {/* RETENCIÓN: CENTRAL (años) */}
-                          <td className="p-2 text-center text-xs border-r">
+                          {/* === RETENCIÓN DOCUMENTAL === */}
+                          
+                          {/* CENTRAL (años) */}
+                          <td className="p-1 text-center text-[10px] border" style={{ borderColor: '#dedecc' }}>
                             {doc.retention_central || '-'}
                           </td>
 
-                          {/* RETENCIÓN: GESTIÓN */}
-                          <td className="p-2 text-center border-r">
-                            {doc.retention_management ? (
-                              <span className="text-green-600 font-bold">✓</span>
-                            ) : (
-                              <span className="text-gray-300">-</span>
-                            )}
+                          {/* GESTIÓN */}
+                          <td className="p-1 text-center text-[10px] border" style={{ borderColor: '#dedecc' }}>
+                            {doc.retention_management || '-'}
                           </td>
 
-                          {/* DISPOSICIÓN: CONSERVACIÓN TOTAL */}
-                          <td className="p-2 text-center border-r">
-                            {doc.disposition_total_conservation ? (
-                              <span className="text-green-600 font-bold">✓</span>
-                            ) : (
-                              <span className="text-gray-300">-</span>
-                            )}
+                          {/* TOTAL */}
+                          <td className="p-1 text-center text-[10px] font-medium border" style={{ borderColor: '#dedecc', color: '#2e5244' }}>
+                            {(parseInt(doc.retention_central || 0) + parseInt(doc.retention_management || 0)) || '-'}
                           </td>
 
-                          {/* DISPOSICIÓN: SELECCIÓN */}
-                          <td className="p-2 text-center border-r">
+                          {/* === DISPOSICIÓN FINAL === */}
+                          
+                          {/* SELECCIÓN */}
+                          <td className="p-1 text-center border" style={{ borderColor: '#dedecc' }}>
                             {doc.disposition_selection ? (
-                              <span className="text-green-600 font-bold">✓</span>
+                              <span className="text-green-600 font-bold text-xs">✓</span>
                             ) : (
-                              <span className="text-gray-300">-</span>
+                              <span className="text-gray-300 text-xs">-</span>
                             )}
                           </td>
 
-                          {/* DISPOSICIÓN: ELIMINACIÓN */}
-                          <td className="p-2 text-center border-r">
+                          {/* CONSERVACIÓN */}
+                          <td className="p-1 text-center border" style={{ borderColor: '#dedecc' }}>
+                            {doc.disposition_total_conservation ? (
+                              <span className="text-green-600 font-bold text-xs">✓</span>
+                            ) : (
+                              <span className="text-gray-300 text-xs">-</span>
+                            )}
+                          </td>
+
+                          {/* ELIMINACIÓN */}
+                          <td className="p-1 text-center border" style={{ borderColor: '#dedecc' }}>
                             {doc.disposition_elimination ? (
-                              <span className="text-green-600 font-bold">✓</span>
+                              <span className="text-red-600 font-bold text-xs">✗</span>
                             ) : (
-                              <span className="text-gray-300">-</span>
+                              <span className="text-gray-300 text-xs">-</span>
                             )}
                           </td>
 
-                          {/* FECHA DE CAMBIO */}
-                          <td className="p-2 text-center text-xs text-gray-600 border-r">
+                          {/* === CONTROL DE CAMBIOS === */}
+                          
+                          {/* FECHA CAMBIO */}
+                          <td className="p-1 text-center text-[10px] text-gray-600 border" style={{ borderColor: '#dedecc' }}>
                             {(() => {
                               try {
-                                return doc.change_date ? new Date(doc.change_date).toLocaleDateString('es-CO') : '-';
+                                const date = doc.change_date;
+                                return date ? new Date(date).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '-';
                               } catch (e) {
                                 return '-';
                               }
                             })()}
                           </td>
 
-                          {/* MOTIVO DE CAMBIO */}
-                          <td className="p-2 text-xs text-gray-600 border-r">
-                            {doc.change_reason ? (
-                              <span className="line-clamp-2" title={doc.change_reason}>
-                                {doc.change_reason}
-                              </span>
-                            ) : '-'}
+                          {/* MOTIVO CAMBIO */}
+                          <td className="p-1 text-[10px] text-gray-600 border max-w-[120px]" style={{ borderColor: '#dedecc' }}>
+                            <span className="truncate block">
+                              {doc.change_reason || '-'}
+                            </span>
                           </td>
 
-                          {/* ESTADO - Badge clickeable si está pendiente */}
-                          <td className="p-2 text-center border-r">
-                            {doc.status === 'pending_approval' ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenApprovalModal(doc);
-                                }}
-                                className="hover:scale-105 transition-transform cursor-pointer"
-                                title="Click para revisar y aprobar/rechazar"
-                              >
-                                {getStatusBadge(doc.status)}
-                              </button>
-                            ) : (
-                              getStatusBadge(doc.status)
-                            )}
+                          {/* UBICACIÓN */}
+                          <td className="p-1 text-[10px] text-gray-600 border" style={{ borderColor: '#dedecc' }}>
+                            <span className="truncate block max-w-[100px]">
+                              {doc.storage_location || '-'}
+                            </span>
                           </td>
 
-                          {/* ACCIONES */}
-                          <td className="p-2">
-                            <div className="flex items-center justify-center space-x-1">
-                              {/* Botón VER */}
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
+                          {/* === ESTADO === */}
+                          <td className="p-1 text-center border" style={{ borderColor: '#dedecc' }}>
+                            {(() => {
+                              const statusConfig = {
+                                draft: { bg: '#fef3c7', color: '#92400e', text: 'Borrador' },
+                                pending_approval: { bg: '#dbeafe', color: '#1e40af', text: 'Pendiente' },
+                                published: { bg: '#d1fae5', color: '#065f46', text: 'Publicado' },
+                                archived: { bg: '#f3f4f6', color: '#4b5563', text: 'Archivado' }
+                              };
+                              const config = statusConfig[doc.status] || statusConfig.draft;
+                              return (
+                                <Badge 
+                                  className="text-[9px] px-1.5 py-0.5 font-medium"
+                                  style={{ 
+                                    backgroundColor: config.bg,
+                                    color: config.color
+                                  }}
+                                >
+                                  {config.text}
+                                </Badge>
+                              );
+                            })()}
+                          </td>
+
+                          {/* === ACCIONES === */}
+                          <td className="p-1 border" style={{ borderColor: '#dedecc' }}>
+                            <div className="flex items-center justify-center gap-0.5">
+                              {/* Ver */}
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => handleOpenViewerModal(doc)}
-                                className="h-7 w-7 p-0"
+                                className="h-6 w-6 p-0"
                                 title="Ver documento"
                               >
                                 <Eye className="h-3 w-3" style={{ color: '#6dbd96' }} />
                               </Button>
 
-                              {/* Botón EDITAR - Usa el MISMO modal */}
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
+                              {/* Editar */}
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => handleOpenEditModal(doc)}
-                                className="h-7 w-7 p-0"
-                                title="Editar metadatos y/o archivo"
+                                className="h-6 w-6 p-0"
+                                title="Editar"
                               >
-                                <Edit className="h-3 w-3" style={{ color: '#2e5244' }} />
+                                <Edit className="h-3 w-3" style={{ color: '#6f7b2c' }} />
                               </Button>
 
-                              {/* Botón CAMBIAR ARCHIVO - Usa el MISMO modal */}
-                              {doc.status === 'published' && (
-                                <Button 
-                                  size="sm" 
-                                  variant="ghost" 
-                                  onClick={() => handleOpenEditModal(doc)}
-                                  className="h-7 w-7 p-0"
-                                  title="Cambiar archivo (requiere aprobación)"
-                                >
-                                  <RefreshCw className="h-3 w-3" style={{ color: '#d97706' }} />
-                                </Button>
-                              )}
-
-                              {/* Botón DESCARGAR */}
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
+                              {/* Descargar */}
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => downloadDocument(doc)}
-                                disabled={downloading || !doc.file_path}
-                                className="h-7 w-7 p-0"
-                                title={
-                                  !doc.file_path 
-                                    ? "No hay archivo disponible" 
-                                    : downloading 
-                                      ? "Descargando..." 
-                                      : "Descargar archivo"
-                                }
+                                disabled={downloading === doc.id}
+                                className="h-6 w-6 p-0"
+                                title="Descargar"
                               >
-                                {downloading ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" style={{ color: '#6f7b2c' }} />
+                                {downloading === doc.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
                                 ) : (
-                                  <Download className="h-3 w-3" style={{ color: '#6f7b2c' }} />
+                                  <Download className="h-3 w-3" style={{ color: '#2e5244' }} />
                                 )}
                               </Button>
                             </div>

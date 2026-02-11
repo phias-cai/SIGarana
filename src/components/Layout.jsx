@@ -1,7 +1,12 @@
+// src/components/layout/Layout.jsx - VERSIÓN MEJORADA
+// ✅ Sidebar colapsable solo con módulos
+// ✅ Navbar con info de usuario + cerrar sesión
+// ✅ Espacios optimizados
+
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/app/components/ui/button';
-import NotificationBell from '../components/Layout/NotificationBell'; // ⬅️ AGREGAR
+import NotificationBell from '../components/Layout/NotificationBell';
 import { 
   FileText, 
   Target, 
@@ -13,73 +18,148 @@ import {
   Menu,
   X,
   ChevronRight,
-  Package
+  ChevronLeft,
+  Package,
+  UserCircle
 } from 'lucide-react';
 
-// ✅ PERMISOS CORREGIDOS - Códigos reales de Supabase
+// ✅ Módulos del sistema
 const MODULES = [
-  { id: 'home', name: 'Inicio', icon: Home, color: '#2e5244', permission: null },
-  { id: 'gestionDocumental', name: 'Gestión Documental', icon: FileText, color: '#6dbd96', permission: 'gestion_documental:view' },
-  { id: 'planeacionEstrategica', name: 'Planeación Estratégica', icon: Target, color: '#6f7b2c', permission: 'cmi:view' },
-  { id: 'mejoramientoContinuo', name: 'Mejoramiento Continuo', icon: TrendingUp, color: '#2e5244', permission: 'auditorias:view' },
-  { id: 'segBienestar', name: 'SST y Bienestar', icon: Shield, color: '#6dbd96', permission: 'sst_bienestar:view' },
-  { id: 'inventario', name: 'Inventario', icon: Package, color: '#6f7b2c', permission: 'inventario:view' },
+  { 
+    id: 'home', 
+    name: 'Inicio', 
+    icon: Home, 
+    color: '#2e5244', 
+    permission: null 
+  },
+  { 
+    id: 'gestionDocumental', 
+    name: 'Gestión Documental', 
+    icon: FileText, 
+    color: '#6dbd96', 
+    permission: 'gestion_documental:view' 
+  },
+  { 
+    id: 'planeacionEstrategica', 
+    name: 'Planeación Estratégica', 
+    icon: Target, 
+    color: '#6f7b2c', 
+    permission: 'cmi:view' 
+  },
+  { 
+    id: 'mejoramientoContinuo', 
+    name: 'Mejoramiento Continuo', 
+    icon: TrendingUp, 
+    color: '#2e5244', 
+    permission: 'auditorias:view' 
+  },
+  { 
+    id: 'segBienestar', 
+    name: 'SST y Bienestar', 
+    icon: Shield, 
+    color: '#6dbd96', 
+    permission: 'sst_bienestar:view' 
+  },
+  { 
+    id: 'inventario', 
+    name: 'Inventario', 
+    icon: Package, 
+    color: '#6f7b2c', 
+    permission: 'inventario:view' 
+  },
 ];
 
 export default function Layout({ children, currentModule, onModuleChange }) {
   const { user, profile, permissions, logout } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop
 
   const handleModuleClick = (moduleId) => {
     onModuleChange(moduleId);
     setSidebarOpen(false);
   };
 
-  // ✅ Función corregida - Verifica permisos directamente
+  // ✅ Verificar acceso a módulos
   const canAccessModule = (module) => {
-    // Inicio siempre visible
     if (module.permission === null) return true;
-    
-    // Admin puede ver todo
     if (profile?.role === 'admin') return true;
-    
-    // Verificar si tiene el permiso específico
-    const hasAccess = permissions && permissions.includes(module.permission);
-    console.log(`🔍 ${module.name}: permiso="${module.permission}", tieneAcceso=${hasAccess}`);
-    return hasAccess;
+    return permissions && permissions.includes(module.permission);
   };
 
   // Verificar si es admin
   const isAdmin = profile?.role === 'admin';
 
+  // Nombre corto para mostrar
+  const displayName = profile?.full_name?.split(' ')[0] || 
+                      user?.email?.split('@')[0] || 
+                      'Usuario';
+
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: '#dedecc' }}>
-      {/* Sidebar */}
+      {/* ============================================
+          SIDEBAR - SOLO MÓDULOS
+      ============================================ */}
       <aside 
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        }`}
+        className={`
+          fixed lg:static inset-y-0 left-0 z-50 
+          transform transition-all duration-300 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          ${sidebarCollapsed ? 'lg:w-16' : 'lg:w-64'}
+        `}
         style={{ backgroundColor: '#2e5244' }}
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-6 border-b" style={{ borderColor: '#6dbd96' }}>
-            <div className="flex items-center space-x-3">
+          <div 
+            className={`
+              p-4 border-b flex items-center justify-between
+              ${sidebarCollapsed ? 'lg:justify-center' : ''}
+            `}
+            style={{ borderColor: '#6dbd96' }}
+          >
+            {!sidebarCollapsed && (
+              <div className="flex items-center space-x-3">
+                <div 
+                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: '#6dbd96' }}
+                >
+                  <span className="font-bold text-white text-base">SIG</span>
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-white text-sm font-semibold">SIGarana</h2>
+                  <p className="text-xs truncate" style={{ color: '#6dbd96' }}>
+                    Sistema Integrado
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {sidebarCollapsed && (
               <div 
-                className="w-12 h-12 rounded-lg flex items-center justify-center"
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
                 style={{ backgroundColor: '#6dbd96' }}
               >
-                <span className="font-bold text-white text-lg">SIG</span>
+                <span className="font-bold text-white text-base">SIG</span>
               </div>
-              <div>
-                <h2 className="text-white">SIGarana</h2>
-                <p className="text-xs" style={{ color: '#6dbd96' }}>Sistema Integrado</p>
-              </div>
-            </div>
+            )}
+
+            {/* Botón colapsar - Solo desktop */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="hidden lg:flex text-white hover:bg-white/10 flex-shrink-0"
+            >
+              {sidebarCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </Button>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
             {MODULES.map((module) => {
               if (!canAccessModule(module)) return null;
               
@@ -90,59 +170,79 @@ export default function Layout({ children, currentModule, onModuleChange }) {
                 <button
                   key={module.id}
                   onClick={() => handleModuleClick(module.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
-                    isActive ? 'bg-white/20' : 'hover:bg-white/10'
-                  }`}
+                  className={`
+                    w-full flex items-center gap-3 px-3 py-2.5 rounded-lg 
+                    transition-all group relative
+                    ${isActive ? 'bg-white/20' : 'hover:bg-white/10'}
+                    ${sidebarCollapsed ? 'lg:justify-center' : ''}
+                  `}
+                  title={sidebarCollapsed ? module.name : ''}
                 >
-                  <Icon className="h-5 w-5 text-white" />
-                  <span className="flex-1 text-left text-white text-sm">{module.name}</span>
-                  {isActive && <ChevronRight className="h-4 w-4 text-white" />}
+                  <Icon className="h-5 w-5 text-white flex-shrink-0" />
+                  
+                  {!sidebarCollapsed && (
+                    <>
+                      <span className="flex-1 text-left text-white text-sm">
+                        {module.name}
+                      </span>
+                      {isActive && <ChevronRight className="h-4 w-4 text-white" />}
+                    </>
+                  )}
+
+                  {/* Tooltip cuando está colapsado */}
+                  {sidebarCollapsed && (
+                    <div className="
+                      absolute left-full ml-2 px-3 py-1.5 
+                      bg-gray-900 text-white text-sm rounded-lg 
+                      whitespace-nowrap opacity-0 group-hover:opacity-100 
+                      pointer-events-none transition-opacity z-50
+                    ">
+                      {module.name}
+                    </div>
+                  )}
                 </button>
               );
             })}
 
+            {/* Gestión de Usuarios (solo admin) */}
             {isAdmin && (
               <button
                 onClick={() => handleModuleClick('usuarios')}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
-                  currentModule === 'usuarios' ? 'bg-white/20' : 'hover:bg-white/10'
-                }`}
+                className={`
+                  w-full flex items-center gap-3 px-3 py-2.5 rounded-lg 
+                  transition-all group relative
+                  ${currentModule === 'usuarios' ? 'bg-white/20' : 'hover:bg-white/10'}
+                  ${sidebarCollapsed ? 'lg:justify-center' : ''}
+                `}
+                title={sidebarCollapsed ? 'Gestión de Usuarios' : ''}
               >
-                <Users className="h-5 w-5 text-white" />
-                <span className="flex-1 text-left text-white text-sm">Gestión de Usuarios</span>
-                {currentModule === 'usuarios' && <ChevronRight className="h-4 w-4 text-white" />}
+                <Users className="h-5 w-5 text-white flex-shrink-0" />
+                
+                {!sidebarCollapsed && (
+                  <>
+                    <span className="flex-1 text-left text-white text-sm">
+                      Gestión de Usuarios
+                    </span>
+                    {currentModule === 'usuarios' && (
+                      <ChevronRight className="h-4 w-4 text-white" />
+                    )}
+                  </>
+                )}
+
+                {/* Tooltip cuando está colapsado */}
+                {sidebarCollapsed && (
+                  <div className="
+                    absolute left-full ml-2 px-3 py-1.5 
+                    bg-gray-900 text-white text-sm rounded-lg 
+                    whitespace-nowrap opacity-0 group-hover:opacity-100 
+                    pointer-events-none transition-opacity z-50
+                  ">
+                    Gestión de Usuarios
+                  </div>
+                )}
               </button>
             )}
           </nav>
-
-          {/* User Info */}
-          <div className="p-4 border-t" style={{ borderColor: '#6dbd96' }}>
-            <div className="flex items-center space-x-3 mb-3">
-              <div 
-                className="w-10 h-10 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: '#6dbd96' }}
-              >
-                <span className="text-white font-medium">
-                  {profile?.full_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-sm truncate">{profile?.full_name || user?.email}</p>
-                <p className="text-xs truncate" style={{ color: '#6dbd96' }}>
-                  {profile?.role === 'admin' ? 'Administrador' : 
-                   profile?.role === 'gerencia' ? 'Gerencia' : 'Usuario'}
-                </p>
-              </div>
-            </div>
-            <Button
-              onClick={logout}
-              variant="ghost"
-              className="w-full justify-start text-white hover:bg-white/10"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Cerrar Sesión
-            </Button>
-          </div>
         </div>
       </aside>
 
@@ -154,39 +254,80 @@ export default function Layout({ children, currentModule, onModuleChange }) {
         />
       )}
 
-      {/* Main Content */}
+      {/* ============================================
+          MAIN CONTENT
+      ============================================ */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="bg-white shadow-sm border-b" style={{ borderColor: '#6dbd96' }}>
-  <div className="px-4 py-4 flex items-center justify-between">
-    <div className="flex items-center space-x-4">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="lg:hidden"
-      >
-        {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </Button>
-      <div>
-        <h1 style={{ color: '#2e5244' }}>
-          {MODULES.find(m => m.id === currentModule)?.name || 
-           (currentModule === 'usuarios' ? 'Gestión de Usuarios' : 'Inicio')}
-        </h1>
-        <p className="text-sm" style={{ color: '#6f7b2c' }}>
-          {profile?.department?.name || 'Sistema Integrado de Gestión'}
-        </p>
-      </div>
-    </div>
-    
-    {/* ⬅️ CAMPANA CON NAVEGACIÓN CORREGIDA */}
-    <NotificationBell onNavigate={onModuleChange} />
-  </div>
-</header>
+        {/* ============================================
+            NAVBAR - INFO DE USUARIO
+        ============================================ */}
+        <header 
+          className="bg-white shadow-sm border-b sticky top-0 z-30" 
+          style={{ borderColor: '#6dbd96' }}
+        >
+          <div className="px-4 py-3 flex items-center justify-between gap-4">
+            {/* Left: Menu mobile + Module name */}
+            <div className="flex items-center gap-3 min-w-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="lg:hidden flex-shrink-0"
+              >
+                {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </Button>
+              
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold truncate" style={{ color: '#2e5244' }}>
+                  {MODULES.find(m => m.id === currentModule)?.name || 
+                   (currentModule === 'usuarios' ? 'Gestión de Usuarios' : 'Inicio')}
+                </h1>
+                <p className="text-xs truncate" style={{ color: '#6f7b2c' }}>
+                  {profile?.department?.name || 'Sistema Integrado de Gestión'}
+                </p>
+              </div>
+            </div>
+            
+            {/* Right: Notificaciones + Usuario + Logout */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Campana de notificaciones */}
+              <NotificationBell onNavigate={onModuleChange} />
+              
+              {/* Info de usuario */}
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50">
+                <UserCircle className="h-5 w-5" style={{ color: '#2e5244' }} />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium truncate" style={{ color: '#2e5244' }}>
+                    Bienvenido, {displayName}
+                  </p>
+                  <p className="text-xs truncate" style={{ color: '#6f7b2c' }}>
+                    {profile?.role === 'admin' ? 'Administrador' : 
+                     profile?.role === 'gerencia' ? 'Gerencia' : 'Usuario'}
+                  </p>
+                </div>
+              </div>
 
-        {/* Content */}
+              {/* Botón cerrar sesión */}
+              <Button
+                onClick={logout}
+                variant="ghost"
+                size="sm"
+                className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden md:inline">Cerrar Sesión</span>
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* ============================================
+            CONTENT - PADDING REDUCIDO
+        ============================================ */}
         <main className="flex-1 overflow-auto">
-          {children}
+          <div className="p-4">
+            {children}
+          </div>
         </main>
       </div>
     </div>

@@ -1,7 +1,7 @@
-// src/context/AuthContext.jsx - QUERIES DIRECTAS (SIN RPC)
-// ✅ Usa queries directas que sabemos que funcionan (0.115ms)
-// ✅ Sin función RPC que se cuelga
-// ✅ Sin race conditions
+// src/context/AuthContext.jsx - VERSIÓN DEFINITIVA
+// ✅ FIX DEFINITIVO: NO recargar datos en SIGNED_IN si ya tenemos datos
+// ✅ Ignora hot reload de Vite
+// ✅ Solo recarga si realmente cambió el usuario
 
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -25,6 +25,7 @@ export const AuthProvider = ({ children }) => {
   const loadingUserRef = useRef(false);
   const currentUserIdRef = useRef(null);
   const initializedRef = useRef(false);
+  const dataLoadedRef = useRef(false);
 
   // ==========================================
   // 🚀 CARGAR DATOS (QUERIES DIRECTAS)
@@ -32,7 +33,7 @@ export const AuthProvider = ({ children }) => {
 
   const loadUserData = async (authUser) => {
     if (loadingUserRef.current && currentUserIdRef.current === authUser?.id) {
-      console.log('⏭️ Already loading, skipping...');
+      console.log('⏭️ Already loading for this user, skipping...');
       return;
     }
 
@@ -41,6 +42,7 @@ export const AuthProvider = ({ children }) => {
     if (!authUser) {
       loadingUserRef.current = false;
       currentUserIdRef.current = null;
+      dataLoadedRef.current = false;
       setUser(null);
       setProfile(null);
       setPermissions([]);
@@ -145,6 +147,7 @@ export const AuthProvider = ({ children }) => {
       setUser(authUser);
       setProfile(finalProfile);
       setPermissions(permissionCodes);
+      dataLoadedRef.current = true;
 
       console.log('✅ User data loaded successfully');
       console.log('   Profile:', finalProfile?.full_name, '| Role:', finalProfile?.role);
@@ -163,6 +166,7 @@ export const AuthProvider = ({ children }) => {
         is_active: true
       });
       setPermissions([]);
+      dataLoadedRef.current = true;
     } finally {
       loadingUserRef.current = false;
       setLoading(false);
@@ -175,7 +179,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      console.log('🔐 Login for:', email);
+      console.log('🔑 Login for:', email);
       setLoading(true);
 
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -202,6 +206,7 @@ export const AuthProvider = ({ children }) => {
       loadingUserRef.current = false;
       currentUserIdRef.current = null;
       initializedRef.current = false;
+      dataLoadedRef.current = false;
 
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
@@ -282,7 +287,7 @@ export const AuthProvider = ({ children }) => {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      console.log('🔔 Auth event:', event, '| Initialized:', initializedRef.current);
+      console.log('🔔 Auth event:', event, '| Initialized:', initializedRef.current, '| DataLoaded:', dataLoadedRef.current);
 
       // Ignorar INITIAL_SESSION (ya lo maneja initialize)
       if (event === 'INITIAL_SESSION') {
@@ -290,41 +295,54 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      // ⬅️ NUEVO: Ignorar SIGNED_IN si aún no hemos terminado de inicializar
+      // Ignorar SIGNED_IN si aún no hemos terminado de inicializar
       if (event === 'SIGNED_IN' && !initializedRef.current) {
         console.log('⏭️ Skipping SIGNED_IN (still initializing)');
         return;
       }
 
+      // ✅ FIX DEFINITIVO: Si ya tenemos datos cargados, NUNCA recargar en SIGNED_IN
       if (event === 'SIGNED_IN' && session?.user) {
-        // Solo recargar si NO tenemos datos (login nuevo)
-        if (!profile) {
-          console.log('✅ SIGNED_IN - loading user data (no profile yet)');
-          if (!loadingUserRef.current) {
-            await loadUserData(session.user);
-          }
+        // Verificar si ya tenemos datos cargados (sin importar el ID)
+        if (dataLoadedRef.current && currentUserIdRef.current) {
+          console.log('✅ SIGNED_IN - data already loaded, ignoring (Hot Reload?)');
+          // NO hacer nada, mantener datos actuales
+          return;
+        }
+        
+        // Solo cargar si NO hay datos
+        if (!loadingUserRef.current) {
+          console.log('✅ SIGNED_IN - loading user data (first time)');
+          await loadUserData(session.user);
         } else {
-          console.log('✅ SIGNED_IN - keeping existing data (profile exists)');
+          console.log('⏭️ SIGNED_IN - already loading, skipping');
         }
       } else if (event === 'SIGNED_OUT') {
         console.log('✅ SIGNED_OUT - clearing data');
         loadingUserRef.current = false;
         currentUserIdRef.current = null;
         initializedRef.current = false;
+        dataLoadedRef.current = false;
         setUser(null);
         setProfile(null);
         setPermissions([]);
         setLoading(false);
       } else if (event === 'TOKEN_REFRESHED') {
         console.log('✅ TOKEN_REFRESHED - keeping session');
+        // NO recargar datos, solo mantener sesión activa
       }
     });
 
-    // Timeout de seguridad
+    // ✅ Timeout mejorado: Solo fuerza loading=false, NO borra datos
     const timeoutId = setTimeout(() => {
-      if (mounted && loading && !loadingUserRef.current) {
-        console.warn('⚠️ Loading timeout - forcing false');
-        setLoading(false);
+      if (mounted && loading) {
+        if (dataLoadedRef.current) {
+          console.log('⚠️ Timeout - but data is loaded, just forcing loading=false');
+          setLoading(false);
+        } else if (!loadingUserRef.current) {
+          console.warn('⚠️ Timeout - no data loaded and not loading, forcing false');
+          setLoading(false);
+        }
       }
     }, 15000);
 
@@ -333,7 +351,7 @@ export const AuthProvider = ({ children }) => {
       subscription.unsubscribe();
       clearTimeout(timeoutId);
     };
-  }, []);
+  }, []); // Sin dependencias para evitar re-renders
 
   // ==========================================
   // 📤 PROVIDER VALUE

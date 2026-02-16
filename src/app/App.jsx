@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import Home from '@/components/modules/Home';
 import GestionDocumental from '@/components/modules/GestionDocumental';
 import PlaneacionEstrategica from '@/components/modules/PlaneacionEstrategica';
-import MejoramientoContinuo from '@/components/modules/MejoramientoContinuo';
+import MejoramientoContinuo from '../components/modules/MejoramientoContinuo';
 import SegBienestar from '@/components/modules/SegBienestar';
 import GestionUsuarios from '@/components/modules/GestionUsuarios';
 
@@ -17,7 +17,7 @@ function AppContent() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#dedecc' }}>
         <div className="text-center">
-          <div 
+          <div
             className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse"
             style={{ backgroundColor: '#2e5244' }}
           >

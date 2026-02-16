@@ -1,7 +1,8 @@
-// src/components/layout/Layout.jsx - VERSIÓN MEJORADA
+// src/components/layout/Layout.jsx - VERSIÓN CON :view AUTOMÁTICOS
 // ✅ Sidebar colapsable solo con módulos
 // ✅ Navbar con info de usuario + cerrar sesión
 // ✅ Espacios optimizados
+// ✅ CORREGIDO: Usa hasPermission() para permisos :view automáticos
 
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -70,7 +71,8 @@ const MODULES = [
 ];
 
 export default function Layout({ children, currentModule, onModuleChange }) {
-  const { user, profile, permissions, logout } = useAuth();
+  // ✅ AGREGADO: hasPermission
+  const { user, profile, permissions, logout, hasPermission } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false); // Mobile
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop
 
@@ -79,11 +81,10 @@ export default function Layout({ children, currentModule, onModuleChange }) {
     setSidebarOpen(false);
   };
 
-  // ✅ Verificar acceso a módulos
+  // ✅ CORREGIDO: Usar hasPermission() para permisos :view automáticos
   const canAccessModule = (module) => {
     if (module.permission === null) return true;
-    if (profile?.role === 'admin') return true;
-    return permissions && permissions.includes(module.permission);
+    return hasPermission(module.permission);
   };
 
   // Verificar si es admin

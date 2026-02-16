@@ -1,7 +1,7 @@
-// src/context/AuthContext.jsx - VERSIÓN DEFINITIVA
-// ✅ FIX DEFINITIVO: NO recargar datos en SIGNED_IN si ya tenemos datos
-// ✅ Ignora hot reload de Vite
-// ✅ Solo recarga si realmente cambió el usuario
+// src/context/AuthContext.jsx - VERSIÓN CON :view AUTOMÁTICOS
+// ✅ Gerencia tiene acceso total (igual que admin)
+// ✅ Permisos :view automáticos para todos los usuarios
+// ✅ Sin race conditions
 
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -224,20 +224,31 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ==========================================
-  // 🎯 HELPER FUNCTIONS
+  // 🎯 HELPER FUNCTIONS - ✅ ACTUALIZADO
   // ==========================================
 
   const isAdmin = profile?.role === 'admin';
   const isGerencia = profile?.role === 'gerencia';
 
   const hasPermission = (permissionCode) => {
+    // Admin y Gerencia tienen acceso total
     if (isAdmin || isGerencia) return true;
+    
+    // Permisos :view automáticos para TODOS los usuarios
+    if (permissionCode?.endsWith(':view')) {
+      return true;
+    }
+    
+    // Verificar permiso asignado en la BD
     return permissions.includes(permissionCode);
   };
 
   const hasAnyPermission = (permissionCodes) => {
+    // Admin y Gerencia tienen acceso total
     if (isAdmin || isGerencia) return true;
-    return permissionCodes.some((code) => permissions.includes(code));
+    
+    // Verificar si tiene al menos uno de los permisos
+    return permissionCodes.some((code) => hasPermission(code));
   };
 
   // ==========================================

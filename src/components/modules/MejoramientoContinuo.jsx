@@ -1,307 +1,305 @@
+// src/components/modules/MejoramientoContinuo/MejoramientoContinuo.jsx
 import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
-import { 
-  TrendingUp,
+import {
+  FileText,
+  CheckCircle2,
   AlertTriangle,
-  CheckCircle,
-  Clock,
-  Plus,
-  Filter,
-  Eye,
-  BarChart3
+  ClipboardCheck,
+  FileBarChart,
+  TrendingUp,
+  Scale,
+  Search,
+  Users,
+  BarChart3,
+  AlertCircle,
+  Smile,
+  Award,
+  HelpCircle,
+  Plus
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 
-const MOCK_ACCIONES_MEJORA = [
-  { id: 1, title: 'Optimizar proceso de corte', priority: 'Alta', status: 'En Progreso', area: 'Producción', responsible: 'Juan Pérez', date: '2026-01-10', progress: 60 },
-  { id: 2, title: 'Implementar sistema 5S', priority: 'Media', status: 'Planificado', area: 'Calidad', responsible: 'María García', date: '2026-02-01', progress: 20 },
-  { id: 3, title: 'Reducir desperdicios de tela', priority: 'Alta', status: 'En Progreso', area: 'Producción', responsible: 'Carlos López', date: '2026-01-15', progress: 75 },
-  { id: 4, title: 'Mejorar tiempos de entrega', priority: 'Crítica', status: 'En Progreso', area: 'Logística', responsible: 'Ana Martínez', date: '2026-01-05', progress: 85 },
-];
+// Importar submódulos (por ahora solo Actas)
+import ActasManager from './MejoramientoContinuo/Actas/ActasManager';
 
-const MOCK_NO_CONFORMIDADES = [
-  { id: 1, description: 'Defecto en costura de producto', type: 'Producto', severity: 'Mayor', status: 'Abierta', date: '2026-01-12' },
-  { id: 2, description: 'Incumplimiento plazo de entrega', type: 'Proceso', severity: 'Crítica', status: 'En Análisis', date: '2026-01-10' },
-  { id: 3, description: 'Error en documentación técnica', type: 'Documental', severity: 'Menor', status: 'Cerrada', date: '2026-01-08' },
-];
-
-const MOCK_AUDITORIAS = [
-  { id: 1, type: 'Interna', area: 'Producción', auditor: 'Sistema de Calidad', date: '2026-01-20', status: 'Programada' },
-  { id: 2, type: 'Externa', area: 'SST', auditor: 'Ente Certificador', date: '2026-02-15', status: 'Programada' },
-  { id: 3, type: 'Interna', area: 'Calidad', auditor: 'Sistema de Calidad', date: '2025-12-10', status: 'Finalizada' },
+// Definición de submódulos
+const SUBMODULES = [
+  {
+    id: 'actas',
+    name: 'Actas',
+    description: 'Actas de reunión',
+    icon: FileText,
+    color: '#2e5244',
+    count: 12, // Mock - después viene de BD
+    enabled: true
+  },
+  {
+    id: 'acciones_mejora',
+    name: 'Acciones de Mejora',
+    description: 'Seguimiento de acciones correctivas',
+    icon: CheckCircle2,
+    color: '#6dbd96',
+    count: 23,
+    enabled: false // Deshabilitado por ahora
+  },
+  {
+    id: 'producto_no_conforme',
+    name: 'Producto No Conforme',
+    description: 'Gestión de no conformidades',
+    icon: AlertTriangle,
+    color: '#6f7b2c',
+    count: 5,
+    enabled: false
+  },
+  {
+    id: 'revision_direccion',
+    name: 'Revisión por la Dirección',
+    description: 'Revisiones gerenciales',
+    icon: ClipboardCheck,
+    color: '#2e5244',
+    count: 3,
+    enabled: false
+  },
+  {
+    id: 'informes',
+    name: 'Informes',
+    description: 'Informes y reportes',
+    icon: FileBarChart,
+    color: '#6dbd96',
+    count: 8,
+    enabled: false
+  },
+  {
+    id: 'indicadores',
+    name: 'Indicadores',
+    description: 'Matriz de indicadores',
+    icon: TrendingUp,
+    color: '#6f7b2c',
+    count: 15,
+    enabled: false
+  },
+  {
+    id: 'requisitos_legales',
+    name: 'Requisitos Legales',
+    description: 'Matriz de requisitos',
+    icon: Scale,
+    color: '#2e5244',
+    count: 27,
+    enabled: false
+  },
+  {
+    id: 'auditorias',
+    name: 'Auditorías',
+    description: 'Plan, programa y hallazgos',
+    icon: Search,
+    color: '#6dbd96',
+    count: 6,
+    enabled: false
+  },
+  {
+    id: 'evaluacion_auditores',
+    name: 'Evaluación de Auditores',
+    description: 'Competencias de auditores',
+    icon: Users,
+    color: '#6f7b2c',
+    count: 4,
+    enabled: false
+  },
+  {
+    id: 'matriz_riesgos',
+    name: 'Matriz de Riesgos',
+    description: 'Riesgos de procesos',
+    icon: BarChart3,
+    color: '#2e5244',
+    count: 18,
+    enabled: false
+  },
+  {
+    id: 'reporte_incidentes',
+    name: 'Reporte de Incidentes',
+    description: 'Incidentes y eventos',
+    icon: AlertCircle,
+    color: '#6dbd96',
+    count: 9,
+    enabled: false
+  },
+  {
+    id: 'clima_laboral',
+    name: 'Clima Laboral',
+    description: 'Evaluación de clima',
+    icon: Smile,
+    color: '#6f7b2c',
+    count: 1,
+    enabled: false
+  },
+  {
+    id: 'satisfaccion_clientes',
+    name: 'Satisfacción de Clientes',
+    description: 'Encuestas y seguimiento',
+    icon: Award,
+    color: '#2e5244',
+    count: 34,
+    enabled: false
+  },
+  {
+    id: 'evaluacion_competencias',
+    name: 'Evaluación de Competencias',
+    description: 'Competencias del personal',
+    icon: Users,
+    color: '#6dbd96',
+    count: 28,
+    enabled: false
+  },
+  {
+    id: 'qrsf',
+    name: 'QRSF',
+    description: 'Quejas, reclamos, sugerencias',
+    icon: HelpCircle,
+    color: '#6f7b2c',
+    count: 7,
+    enabled: false
+  },
 ];
 
 export default function MejoramientoContinuo() {
-  const { hasPermission } = useAuth();
-  const canWrite = hasPermission('mejoramientoContinuo', 'write');
+  const [activeSubmodule, setActiveSubmodule] = useState(null);
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'Crítica': return '#d4183d';
-      case 'Alta': return '#6f7b2c';
-      case 'Media': return '#6dbd96';
-      default: return '#dedecc';
-    }
-  };
+  // Si hay un submódulo activo, mostrar ese componente
+  if (activeSubmodule === 'actas') {
+    return (
+      <ActasManager
+        onBack={() => setActiveSubmodule(null)}
+      />
+    );
+  }
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'Completado':
-      case 'Cerrada':
-      case 'Finalizada':
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'En Progreso':
-      case 'En Análisis':
-        return <Clock className="h-4 w-4 text-blue-600" />;
-      default:
-        return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
-    }
-  };
-
+  // Dashboard principal con cards
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-        <div>
-          <h2 style={{ color: '#2e5244' }}>Mejoramiento Continuo</h2>
-          <p className="text-sm mt-1" style={{ color: '#6f7b2c' }}>
-            Gestión de acciones de mejora, no conformidades y auditorías
-          </p>
-        </div>
-        {canWrite && (
-          <Button style={{ backgroundColor: '#2e5244' }} className="text-white">
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva Acción
-          </Button>
-        )}
+      <div>
+        <h2 className="text-2xl font-bold" style={{ color: '#2e5244' }}>
+          Mejoramiento Continuo
+        </h2>
+        <p className="text-sm mt-1" style={{ color: '#6f7b2c' }}>
+          Gestión integral de mejoramiento y calidad
+        </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-xs">Acciones Activas</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <p className="text-3xl" style={{ color: '#2e5244' }}>34</p>
-              <TrendingUp className="h-8 w-8" style={{ color: '#6dbd96' }} />
-            </div>
-          </CardContent>
-        </Card>
+      {/* Grid de cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {SUBMODULES.map((submodule) => {
+          const Icon = submodule.icon;
 
-        <Card className="border-2" style={{ borderColor: '#6f7b2c' }}>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-xs">No Conformidades</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <p className="text-3xl" style={{ color: '#2e5244' }}>12</p>
-              <AlertTriangle className="h-8 w-8" style={{ color: '#6f7b2c' }} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2" style={{ borderColor: '#2e5244' }}>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-xs">Auditorías Año</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <p className="text-3xl" style={{ color: '#2e5244' }}>18</p>
-              <BarChart3 className="h-8 w-8" style={{ color: '#2e5244' }} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
-          <CardHeader className="pb-3">
-            <CardDescription className="text-xs">Acciones Cerradas</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <p className="text-3xl" style={{ color: '#2e5244' }}>87</p>
-              <CheckCircle className="h-8 w-8" style={{ color: '#6dbd96' }} />
-            </div>
-          </CardContent>
-        </Card>
+          return (
+            <Card
+              key={submodule.id}
+              className={`
+                border-2 transition-all cursor-pointer
+                ${submodule.enabled
+                  ? 'hover:shadow-lg hover:scale-105'
+                  : 'opacity-50 cursor-not-allowed'
+                }
+              `}
+              style={{
+                borderColor: submodule.enabled ? submodule.color : '#ccc'
+              }}
+              onClick={() => {
+                if (submodule.enabled) {
+                  setActiveSubmodule(submodule.id);
+                }
+              }}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div
+                    className="w-12 h-12 rounded-lg flex items-center justify-center"
+                    style={{
+                      backgroundColor: submodule.enabled
+                        ? `${submodule.color}20`
+                        : '#f0f0f0'
+                    }}
+                  >
+                    <Icon
+                      className="h-6 w-6"
+                      style={{ color: submodule.enabled ? submodule.color : '#999' }}
+                    />
+                  </div>
+                  {submodule.enabled && (
+                    <Badge
+                      variant="secondary"
+                      style={{
+                        backgroundColor: `${submodule.color}20`,
+                        color: submodule.color
+                      }}
+                    >
+                      {submodule.count}
+                    </Badge>
+                  )}
+                  {!submodule.enabled && (
+                    <Badge variant="outline">
+                      Próximamente
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <h3
+                  className="font-semibold text-sm mb-1"
+                  style={{ color: submodule.enabled ? submodule.color : '#999' }}
+                >
+                  {submodule.name}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  {submodule.description}
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="acciones" className="w-full">
-        <TabsList className="grid w-full md:w-auto grid-cols-3">
-          <TabsTrigger value="acciones">Acciones de Mejora</TabsTrigger>
-          <TabsTrigger value="noconformidades">No Conformidades</TabsTrigger>
-          <TabsTrigger value="auditorias">Auditorías</TabsTrigger>
-        </TabsList>
-
-        {/* Acciones de Mejora */}
-        <TabsContent value="acciones" className="space-y-4">
-          <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle style={{ color: '#2e5244' }}>Acciones de Mejora</CardTitle>
-                  <CardDescription>Seguimiento a acciones de mejoramiento</CardDescription>
-                </div>
-                <Button variant="outline" style={{ borderColor: '#6dbd96' }}>
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filtrar
-                </Button>
+      {/* Estadísticas rápidas */}
+      <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
+        <CardHeader>
+          <CardTitle style={{ color: '#2e5244' }}>
+            Resumen General
+          </CardTitle>
+          <CardDescription>
+            Estadísticas del módulo de mejoramiento continuo
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#2e524410' }}>
+              <div className="text-2xl font-bold" style={{ color: '#2e5244' }}>
+                {SUBMODULES.reduce((sum, m) => sum + m.count, 0)}
               </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {MOCK_ACCIONES_MEJORA.map((accion) => (
-                <div 
-                  key={accion.id}
-                  className="p-4 border-2 rounded-lg hover:shadow-md transition-shadow"
-                  style={{ borderColor: '#dedecc' }}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h4 style={{ color: '#2e5244' }}>{accion.title}</h4>
-                        {getStatusIcon(accion.status)}
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        {accion.responsible} • {accion.area} • {accion.date}
-                      </p>
-                    </div>
-                    <Badge style={{ backgroundColor: getPriorityColor(accion.priority) }} className="text-white">
-                      {accion.priority}
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex-1 mr-4">
-                      <div className="flex items-center justify-between text-xs mb-1">
-                        <span style={{ color: '#6f7b2c' }}>Avance</span>
-                        <span style={{ color: '#2e5244' }}>{accion.progress}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="h-2 rounded-full transition-all"
-                          style={{ width: `${accion.progress}%`, backgroundColor: '#6dbd96' }}
-                        />
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline">
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* No Conformidades */}
-        <TabsContent value="noconformidades">
-          <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
-            <CardHeader>
-              <CardTitle style={{ color: '#2e5244' }}>No Conformidades</CardTitle>
-              <CardDescription>Registro y seguimiento de no conformidades</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b-2" style={{ borderColor: '#dedecc' }}>
-                      <th className="text-left p-3 text-sm" style={{ color: '#2e5244' }}>Descripción</th>
-                      <th className="text-left p-3 text-sm" style={{ color: '#2e5244' }}>Tipo</th>
-                      <th className="text-left p-3 text-sm" style={{ color: '#2e5244' }}>Severidad</th>
-                      <th className="text-left p-3 text-sm" style={{ color: '#2e5244' }}>Estado</th>
-                      <th className="text-left p-3 text-sm" style={{ color: '#2e5244' }}>Fecha</th>
-                      <th className="text-right p-3 text-sm" style={{ color: '#2e5244' }}>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {MOCK_NO_CONFORMIDADES.map((nc) => (
-                      <tr key={nc.id} className="border-b hover:bg-gray-50" style={{ borderColor: '#dedecc' }}>
-                        <td className="p-3">
-                          <span className="text-sm" style={{ color: '#2e5244' }}>{nc.description}</span>
-                        </td>
-                        <td className="p-3">
-                          <Badge variant="outline">{nc.type}</Badge>
-                        </td>
-                        <td className="p-3">
-                          <Badge style={{ backgroundColor: getPriorityColor(nc.severity) }} className="text-white">
-                            {nc.severity}
-                          </Badge>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center space-x-2">
-                            {getStatusIcon(nc.status)}
-                            <span className="text-sm">{nc.status}</span>
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <span className="text-sm text-gray-600">{nc.date}</span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button size="sm" variant="outline">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="text-xs text-gray-600 mt-1">Total Registros</div>
+            </div>
+            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#6dbd9610' }}>
+              <div className="text-2xl font-bold" style={{ color: '#6dbd96' }}>
+                {SUBMODULES.filter(m => m.enabled).length}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Auditorías */}
-        <TabsContent value="auditorias">
-          <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
-            <CardHeader>
-              <CardTitle style={{ color: '#2e5244' }}>Auditorías</CardTitle>
-              <CardDescription>Programación y resultados de auditorías</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {MOCK_AUDITORIAS.map((auditoria) => (
-                <div 
-                  key={auditoria.id}
-                  className="flex items-center justify-between p-4 border-2 rounded-lg"
-                  style={{ borderColor: '#dedecc' }}
-                >
-                  <div className="flex items-center space-x-4">
-                    <div 
-                      className="w-12 h-12 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: '#6dbd9620' }}
-                    >
-                      <BarChart3 className="h-6 w-6" style={{ color: '#6dbd96' }} />
-                    </div>
-                    <div>
-                      <h4 style={{ color: '#2e5244' }}>Auditoría {auditoria.type}</h4>
-                      <p className="text-sm text-gray-600">
-                        {auditoria.area} • {auditoria.auditor} • {auditoria.date}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <Badge 
-                      style={{ 
-                        backgroundColor: auditoria.status === 'Finalizada' ? '#6dbd96' : '#6f7b2c' 
-                      }} 
-                      className="text-white"
-                    >
-                      {auditoria.status}
-                    </Badge>
-                    <Button size="sm" variant="outline">
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              <div className="text-xs text-gray-600 mt-1">Submódulos Activos</div>
+            </div>
+            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#6f7b2c10' }}>
+              <div className="text-2xl font-bold" style={{ color: '#6f7b2c' }}>
+                {SUBMODULES.filter(m => !m.enabled).length}
+              </div>
+              <div className="text-xs text-gray-600 mt-1">En Desarrollo</div>
+            </div>
+            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#2e524410' }}>
+              <div className="text-2xl font-bold" style={{ color: '#2e5244' }}>
+                85%
+              </div>
+              <div className="text-xs text-gray-600 mt-1">Cumplimiento</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

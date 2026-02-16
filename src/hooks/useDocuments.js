@@ -141,6 +141,7 @@ export const useDocumentTypes = () => {
 
 /**
  * Hook para cargar procesos
+ * ✅ CORREGIDO: Ahora filtra solo procesos activos
  */
 export const useProcesses = () => {
   const [processes, setProcesses] = useState([]);
@@ -156,6 +157,7 @@ export const useProcesses = () => {
         const { data, error: fetchError } = await supabase
           .from('process')
           .select('*')
+          .eq('is_active', true)  // ✅ AGREGADO: Solo procesos activos
           .order('name');
 
         if (fetchError) throw fetchError;

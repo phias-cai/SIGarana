@@ -1,5 +1,5 @@
 // src/components/modules/MejoramientoContinuo/Actas/ActasManager.jsx
-// ✅ VERSIÓN DEFINITIVA con TODOS los botones funcionando
+// ✅ VERSIÓN FINAL con PERMISOS completos
 
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
@@ -41,6 +41,7 @@ import {
 import FormularioActa from './FormularioActa';
 import VistaActa from './VistaActa';
 import { useActas } from '@/hooks/useActas';
+import { useActasPermissions } from '@/hooks/useActasPermissions';
 import { supabase } from '@/lib/supabase';
 
 export default function ActasManager({ onBack }) {
@@ -51,9 +52,18 @@ export default function ActasManager({ onBack }) {
     fetchActas, 
     fetchActaById,
     createActa, 
-    updateActa, 
-    deleteActa 
+    updateActa
   } = useActas();
+
+  // ✅ Hook de permisos para Actas
+  const { 
+    canEditActa, 
+    canArchiveActa, 
+    canDeleteActa,
+    canDownloadActa,
+    user,
+    profile 
+  } = useActasPermissions();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -464,7 +474,8 @@ export default function ActasManager({ onBack }) {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {/* Ver */}
+                          
+                          {/* ✅ VER - Todos pueden ver */}
                           <Button
                             size="sm"
                             variant="ghost"
@@ -475,55 +486,62 @@ export default function ActasManager({ onBack }) {
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
                           
-                          {/* Descargar */}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0"
-                            title="Descargar Word"
-                            onClick={() => handleDownloadActa(acta)}
-                            disabled={downloadingId === acta.id}
-                          >
-                            {downloadingId === acta.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Download className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
+                          {/* ✅ DESCARGAR - Con validación de permisos */}
+                          {canDownloadActa() && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              title="Descargar Word"
+                              onClick={() => handleDownloadActa(acta)}
+                              disabled={downloadingId === acta.id}
+                            >
+                              {downloadingId === acta.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          )}
                           
-                          {/* Editar */}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0"
-                            title="Editar"
-                            onClick={() => handleEditActa(acta)}
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
+                          {/* ✅ EDITAR - Con validación de permisos */}
+                          {canEditActa(acta, user?.id, profile?.role) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              title="Editar"
+                              onClick={() => handleEditActa(acta)}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           
-                          {/* Archivar */}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0 text-orange-600 hover:text-orange-700"
-                            title="Archivar"
-                            onClick={() => handleArchiveActa(acta)}
-                            disabled={acta.status === 'archived'}
-                          >
-                            <Archive className="h-3.5 w-3.5" />
-                          </Button>
+                          {/* ✅ ARCHIVAR - Solo admin/gerencia */}
+                          {canArchiveActa(profile?.role) && acta.status !== 'archived' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-orange-600 hover:text-orange-700"
+                              title="Archivar"
+                              onClick={() => handleArchiveActa(acta)}
+                            >
+                              <Archive className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           
-                          {/* Eliminar */}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 w-7 p-0 text-red-600 hover:text-red-700"
-                            title="Eliminar permanentemente"
-                            onClick={() => handleDeleteActa(acta)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {/* ✅ ELIMINAR - Solo admin */}
+                          {canDeleteActa(profile?.role) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-red-600 hover:text-red-700"
+                              title="Eliminar permanentemente"
+                              onClick={() => handleDeleteActa(acta)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

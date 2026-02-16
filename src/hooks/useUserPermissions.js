@@ -1,12 +1,13 @@
 // src/hooks/useUserPermissions.js
 // Hook COMPLETO para gestionar permisos de un usuario específico
-// Incluye funciones de verificación para el módulo de actas
+// ✅ Incluye: asignación, revocación, consulta de permisos
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
 /**
  * Hook para gestionar permisos de un usuario específico
+ * @param {string} userId - ID del usuario
  */
 export function useUserPermissions(userId) {
   const [permissions, setPermissions] = useState([]);
@@ -24,6 +25,9 @@ export function useUserPermissions(userId) {
     }
   }, [userId]);
 
+  /**
+   * Carga los permisos del usuario desde la BD
+   */
   const loadPermissions = async () => {
     try {
       setLoading(true);
@@ -43,6 +47,8 @@ export function useUserPermissions(userId) {
         .map(p => p.permission_code);
       setPermissionCodes(codes);
 
+      console.log('✅ Permisos cargados para usuario:', userId, '→', codes.length, 'permisos');
+
     } catch (err) {
       console.error('❌ Error loading user permissions:', err);
       setError(err.message);
@@ -51,12 +57,19 @@ export function useUserPermissions(userId) {
     }
   };
 
-  const assignPermissions = async (permissionCodes, notes = null) => {
+  /**
+   * Asigna permisos a un usuario
+   * @param {string[]} codes - Códigos de permisos a asignar
+   * @param {string} notes - Notas opcionales
+   */
+  const assignPermissions = async (codes, notes = null) => {
     try {
+      console.log('➕ Asignando permisos:', codes);
+
       const { data, error } = await supabase
         .rpc('assign_permissions_to_user', {
           p_user_id: userId,
-          p_permission_codes: permissionCodes,
+          p_permission_codes: codes,
           p_notes: notes
         });
 
@@ -64,6 +77,7 @@ export function useUserPermissions(userId) {
 
       await loadPermissions();
 
+      console.log('✅ Permisos asignados correctamente');
       return { success: true, data };
     } catch (err) {
       console.error('❌ Error assigning permissions:', err);
@@ -71,12 +85,19 @@ export function useUserPermissions(userId) {
     }
   };
 
-  const revokePermissions = async (permissionCodes, notes = null) => {
+  /**
+   * Revoca permisos de un usuario
+   * @param {string[]} codes - Códigos de permisos a revocar
+   * @param {string} notes - Notas opcionales
+   */
+  const revokePermissions = async (codes, notes = null) => {
     try {
+      console.log('➖ Revocando permisos:', codes);
+
       const { data, error } = await supabase
         .rpc('revoke_permissions_from_user', {
           p_user_id: userId,
-          p_permission_codes: permissionCodes,
+          p_permission_codes: codes,
           p_notes: notes
         });
 
@@ -84,6 +105,7 @@ export function useUserPermissions(userId) {
 
       await loadPermissions();
 
+      console.log('✅ Permisos revocados correctamente');
       return { success: true, data };
     } catch (err) {
       console.error('❌ Error revoking permissions:', err);
@@ -91,138 +113,25 @@ export function useUserPermissions(userId) {
     }
   };
 
-  // ============================================================================
-  // FUNCIONES DE VERIFICACIÓN PARA ACTAS
-  // ============================================================================
-
   /**
    * Verifica si el usuario tiene un permiso específico
    * @param {string} permissionCode - Código del permiso
-   * @returns {boolean}
    */
   const hasPermission = (permissionCode) => {
     return permissionCodes.includes(permissionCode);
   };
 
-  /**
-   * Verifica si puede editar un acta específica
-   * @param {object} acta - Objeto del acta
-   * @param {string} currentUserId - ID del usuario actual
-   * @param {string} userRole - Rol del usuario (admin, gerencia, usuario)
-   * @returns {boolean}
-   */
-  const canEditActa = (acta, currentUserId, userRole) => {
-    if (!acta) return false;
-    
-    // Admin puede editar cualquiera
-    if (userRole === 'admin') return true;
-    
-    // No se puede editar archivadas (solo admin)
-    if (acta.status === 'archived') return false;
-    
-    // Gerencia con permiso edit_all puede editar no archivadas
-    if (userRole === 'gerencia' && hasPermission('auditorias:actas_edit_all')) {
-      return true;
-    }
-    
-    // Creador puede editar solo borradores propios
-    if (acta.created_by === currentUserId && acta.status === 'draft') {
-      return hasPermission('auditorias:actas_edit');
-    }
-    
-    return false;
-  };
-
-  /**
-   * Verifica si puede archivar un acta
-   * ⭐ SOLO GERENCIA/ADMIN
-   * @param {object} acta - Objeto del acta
-   * @param {string} userRole - Rol del usuario
-   * @returns {boolean}
-   */
-  const canArchiveActa = (acta, userRole) => {
-    if (!acta) return false;
-    
-    // No se puede archivar algo ya archivado
-    if (acta.status === 'archived') return false;
-    
-    // Solo gerencia/admin
-    if (!['gerencia', 'admin'].includes(userRole)) return false;
-    
-    // Verificar permiso
-    return hasPermission('auditorias:actas_archive');
-  };
-
-  /**
-   * Verifica si puede eliminar un acta
-   * ⭐ SOLO GERENCIA/ADMIN
-   * @param {object} acta - Objeto del acta
-   * @param {string} userRole - Rol del usuario
-   * @returns {boolean}
-   */
-  const canDeleteActa = (acta, userRole) => {
-    if (!acta) return false;
-    
-    // Solo gerencia/admin
-    if (!['gerencia', 'admin'].includes(userRole)) return false;
-    
-    // Verificar permiso
-    return hasPermission('auditorias:actas_delete');
-  };
-
-  /**
-   * Verifica si puede aprobar un acta
-   * @param {object} acta - Objeto del acta
-   * @returns {boolean}
-   */
-  const canApproveActa = (acta) => {
-    if (!acta) return false;
-    
-    // No se puede aprobar algo ya aprobado o archivado
-    if (acta.status === 'approved' || acta.status === 'archived') return false;
-    
-    return hasPermission('auditorias:actas_approve');
-  };
-
-  /**
-   * Verifica si puede descargar actas
-   * @returns {boolean}
-   */
-  const canDownloadActa = () => {
-    return hasPermission('auditorias:actas_download');
-  };
-
-  /**
-   * Verifica si puede ver todas las actas
-   * @returns {boolean}
-   */
-  const canViewAllActas = () => {
-    return hasPermission('auditorias:actas_view_all');
-  };
-
-  // ============================================================================
-  // RETURN CON TODAS LAS FUNCIONES
-  // ============================================================================
-
   return {
-    // Estado y datos
+    // Estados
     permissions,
     permissionCodes,
     loading,
     error,
     
-    // Funciones de gestión
+    // Funciones
     assignPermissions,
     revokePermissions,
-    refresh: loadPermissions,
-    
-    // Funciones de verificación para actas
     hasPermission,
-    canEditActa,
-    canArchiveActa,
-    canDeleteActa,
-    canApproveActa,
-    canDownloadActa,
-    canViewAllActas,
+    refresh: loadPermissions
   };
 }

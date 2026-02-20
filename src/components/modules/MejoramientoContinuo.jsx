@@ -23,6 +23,7 @@ import {
 
 // Importar submódulos (por ahora solo Actas)
 import ActasManager from './MejoramientoContinuo/Actas/ActasManager';
+import AccionesMejoraManager from './MejoramientoContinuo/AccionesMejora/AccionesMejoraManager';
 
 // Definición de submódulos
 const SUBMODULES = [
@@ -42,7 +43,7 @@ const SUBMODULES = [
     icon: CheckCircle2,
     color: '#6dbd96',
     count: 23,
-    enabled: false // Deshabilitado por ahora
+    enabled: true 
   },
   {
     id: 'producto_no_conforme',
@@ -174,6 +175,12 @@ export default function MejoramientoContinuo() {
       />
     );
   }
+
+  if (activeSubmodule === 'acciones_mejora') {
+  return (
+    <AccionesMejoraManager onBack={() => setActiveSubmodule(null)} />
+  );
+}
 
   // Dashboard principal con cards
   return (

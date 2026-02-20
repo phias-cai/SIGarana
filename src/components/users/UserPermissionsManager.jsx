@@ -77,6 +77,7 @@ export function UserPermissionsManager({ userId, userName, userRole, onSuccess }
       
       // Mejoramiento Continuo
       'actas': 'Actas de Reunión',
+      'acciones_mejora': 'Acciones de Mejora',
       'hallazgos': 'Hallazgos',
       'actions': 'Acciones Correctivas',
       'findings': 'Hallazgos',

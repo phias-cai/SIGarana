@@ -487,7 +487,7 @@ export default function ActasManager({ onBack }) {
                           </Button>
                           
                           {/* ✅ DESCARGAR - Con validación de permisos */}
-                          {canDownloadActa() && (
+                          {canDownloadActa(profile?.role) && (
                             <Button
                               size="sm"
                               variant="ghost"

@@ -319,8 +319,8 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
             </Button>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto border rounded-lg">
+          {/* Table - OPTIMIZADO PARA NO SCROLL */}
+          <div className="border rounded-lg overflow-hidden" style={{ fontSize: '85%', zoom: '0.75' }}>
             {loading ? (
               <div className="flex items-center justify-center p-12">
                 <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#6dbd96' }} />
@@ -332,31 +332,31 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                 <p>No se encontraron documentos</p>
               </div>
             ) : (
-              <table className="w-full text-xs">
+              <table className="w-full text-xs table-auto">
                 {/* ENCABEZADOS AGRUPADOS (como en Excel) */}
                 <thead>
                   {/* Fila 1: Grupos principales */}
                   <tr className="bg-gray-100 text-xs uppercase" style={{ color: '#2e5244' }}>
-                    <th rowSpan="2" className="p-1.5 text-left border font-bold" style={{ borderColor: '#dedecc' }}></th>
-                    <th colSpan="3" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
-                      IDENTIFICACIÓN DE DOCUMENTOS
+                    <th rowSpan="2" className="p-1 text-left border font-bold w-4" style={{ borderColor: '#dedecc' }}></th>
+                    <th colSpan="3" className="p-1 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      IDENTIFICACIÓN
                     </th>
-                    <th colSpan="3" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
-                      TIPO DE ARCHIVO
+                    <th colSpan="3" className="p-1 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      ARCHIVO
                     </th>
-                    <th colSpan="3" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
-                      RETENCIÓN DOCUMENTAL
+                    <th colSpan="3" className="p-1 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      RETENCIÓN
                     </th>
-                    <th colSpan="3" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
-                      DISPOSICIÓN FINAL
+                    <th colSpan="3" className="p-1 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      DISPOSICIÓN
                     </th>
-                    <th colSpan="3" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
-                      CONTROL DE CAMBIOS
+                    <th colSpan="3" className="p-1 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                      CAMBIOS
                     </th>
-                    <th rowSpan="2" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                    <th rowSpan="2" className="p-1 text-center border font-bold w-16" style={{ borderColor: '#dedecc' }}>
                       ESTADO
                     </th>
-                    <th rowSpan="2" className="p-1.5 text-center border font-bold" style={{ borderColor: '#dedecc' }}>
+                    <th rowSpan="2" className="p-1 text-center border font-bold w-20" style={{ borderColor: '#dedecc' }}>
                       ACCIONES
                     </th>
                   </tr>
@@ -364,29 +364,29 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                   {/* Fila 2: Columnas específicas */}
                   <tr className="bg-gray-50 text-[10px] uppercase" style={{ color: '#2e5244' }}>
                     {/* IDENTIFICACIÓN */}
-                    <th className="p-1.5 text-left border font-medium" style={{ borderColor: '#dedecc' }}>Código</th>
-                    <th className="p-1.5 text-left border font-medium" style={{ borderColor: '#dedecc' }}>Nombre</th>
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Responsable</th>
+                    <th className="p-1 text-left border font-medium w-20" style={{ borderColor: '#dedecc' }}>Código</th>
+                    <th className="p-1 text-left border font-medium" style={{ borderColor: '#dedecc' }}>Nombre</th>
+                    <th className="p-1 text-center border font-medium w-20" style={{ borderColor: '#dedecc' }}>Resp.</th>
                     
-                    {/* TIPO ARCHIVO */}
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Tipo</th>
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Versión</th>
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Fecha</th>
+                    {/* ARCHIVO */}
+                    <th className="p-1 text-center border font-medium w-12" style={{ borderColor: '#dedecc' }}>Tipo</th>
+                    <th className="p-1 text-center border font-medium w-12" style={{ borderColor: '#dedecc' }}>Ver.</th>
+                    <th className="p-1 text-center border font-medium w-16" style={{ borderColor: '#dedecc' }}>Fecha</th>
                     
                     {/* RETENCIÓN */}
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Central</th>
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Gestión</th>
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Total</th>
+                    <th className="p-1 text-center border font-medium w-12" style={{ borderColor: '#dedecc' }}>Cent.</th>
+                    <th className="p-1 text-center border font-medium w-12" style={{ borderColor: '#dedecc' }}>Gest.</th>
+                    <th className="p-1 text-center border font-medium w-12" style={{ borderColor: '#dedecc' }}>Tot.</th>
                     
                     {/* DISPOSICIÓN */}
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Selección</th>
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Conserv.</th>
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Elimin.</th>
+                    <th className="p-1 text-center border font-medium w-12" style={{ borderColor: '#dedecc' }}>Sel.</th>
+                    <th className="p-1 text-center border font-medium w-12" style={{ borderColor: '#dedecc' }}>Con.</th>
+                    <th className="p-1 text-center border font-medium w-12" style={{ borderColor: '#dedecc' }}>Eli.</th>
                     
-                    {/* CONTROL CAMBIOS */}
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>F. Cambio</th>
-                    <th className="p-1.5 text-left border font-medium" style={{ borderColor: '#dedecc' }}>Motivo</th>
-                    <th className="p-1.5 text-center border font-medium" style={{ borderColor: '#dedecc' }}>Ubicación</th>
+                    {/* CAMBIOS */}
+                    <th className="p-1 text-center border font-medium w-16" style={{ borderColor: '#dedecc' }}>F. Camb.</th>
+                    <th className="p-1 text-left border font-medium w-24" style={{ borderColor: '#dedecc' }}>Motivo</th>
+                    <th className="p-1 text-center border font-medium w-20" style={{ borderColor: '#dedecc' }}>Ubic.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -441,7 +441,7 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                           </td>
 
                           {/* NOMBRE */}
-                          <td className="p-1 border max-w-[200px]" style={{ borderColor: '#dedecc' }}>
+                          <td className="p-1 border max-w-[150px]" style={{ borderColor: '#dedecc' }}>
                             <p className="font-medium text-[10px] truncate" style={{ color: '#2e5244' }}>
                               {doc.name}
                             </p>
@@ -449,7 +449,7 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
 
                           {/* RESPONSABLE */}
                           <td className="p-1 text-[10px] text-gray-600 border" style={{ borderColor: '#dedecc' }}>
-                            <span className="truncate block max-w-[100px]">
+                            <span className="truncate block max-w-[80px]">
                               {doc.responsible || (typeof doc.created_by_profile === 'object' ? doc.created_by_profile?.full_name : doc.created_by_profile) || '-'}
                             </span>
                           </td>
@@ -543,7 +543,7 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                           </td>
 
                           {/* MOTIVO CAMBIO */}
-                          <td className="p-1 text-[10px] text-gray-600 border max-w-[120px]" style={{ borderColor: '#dedecc' }}>
+                          <td className="p-1 text-[10px] text-gray-600 border max-w-[100px]" style={{ borderColor: '#dedecc' }}>
                             <span className="truncate block">
                               {doc.change_reason || '-'}
                             </span>
@@ -551,7 +551,7 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
 
                           {/* UBICACIÓN */}
                           <td className="p-1 text-[10px] text-gray-600 border" style={{ borderColor: '#dedecc' }}>
-                            <span className="truncate block max-w-[100px]">
+                            <span className="truncate block max-w-[80px]">
                               {doc.storage_location || '-'}
                             </span>
                           </td>
@@ -566,6 +566,25 @@ export default function ListadoMaestro({ onCreateNew, onEdit, onView }) {
                                 archived: { bg: '#f3f4f6', color: '#4b5563', text: 'Archivado' }
                               };
                               const config = statusConfig[doc.status] || statusConfig.draft;
+                              
+                              // Si es pending_approval, hacer clickeable
+                              if (doc.status === 'pending_approval') {
+                                return (
+                                  <Badge 
+                                    className="text-[9px] px-1.5 py-0.5 font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                                    style={{ 
+                                      backgroundColor: config.bg,
+                                      color: config.color
+                                    }}
+                                    onClick={() => handleOpenApprovalModal(doc)}
+                                    title="Click para aprobar/rechazar"
+                                  >
+                                    ✓ {config.text}
+                                  </Badge>
+                                );
+                              }
+                              
+                              // Para otros estados, badge normal
                               return (
                                 <Badge 
                                   className="text-[9px] px-1.5 py-0.5 font-medium"

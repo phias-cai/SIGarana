@@ -4,15 +4,16 @@
 import { useAuth } from '@/context/AuthContext';
 
 export const useActasPermissions = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, hasPermission } = useAuth();
 
   /**
    * Valida si el usuario puede EDITAR un acta
    * 
    * REGLAS:
-   * - Creador: Puede editar solo sus actas en estado 'draft'
-   * - Admin/Gerencia: Puede editar cualquier acta que NO esté 'archived'
-   * - Otros usuarios: NO pueden editar
+   * - Admin/Gerencia: Pueden editar cualquier acta NO archivada
+   * - Usuario con auditorias:actas_edit_all: Puede editar todas las actas NO archivadas
+   * - Usuario con auditorias:actas_edit: Puede editar solo sus actas en draft
+   * - Actas archivadas NO se pueden editar
    */
   const canEditActa = (acta, userId, role) => {
     if (!acta || !userId) return false;
@@ -25,8 +26,15 @@ export const useActasPermissions = () => {
       return true;
     }
     
-    // Creador puede editar solo si está en draft
-    if (acta.created_by === userId && acta.status === 'draft') {
+    // Usuario con permiso edit_all puede editar cualquier acta
+    if (hasPermission('auditorias:actas_edit_all')) {
+      return true;
+    }
+    
+    // Usuario con permiso edit puede editar solo sus actas en draft
+    if (hasPermission('auditorias:actas_edit') && 
+        acta.created_by === userId && 
+        acta.status === 'draft') {
       return true;
     }
     
@@ -35,30 +43,57 @@ export const useActasPermissions = () => {
 
   /**
    * Valida si el usuario puede ARCHIVAR actas
-   * Solo Admin y Gerencia
+   * 
+   * REGLAS:
+   * - Admin/Gerencia: Siempre pueden archivar
+   * - Usuario con auditorias:actas_archive: Puede archivar
    */
   const canArchiveActa = (role) => {
-    return role === 'admin' || role === 'gerencia';
+    if (role === 'admin' || role === 'gerencia') {
+      return true;
+    }
+    
+    return hasPermission('auditorias:actas_archive');
   };
 
   /**
    * Valida si el usuario puede ELIMINAR actas permanentemente
-   * Solo Admin
+   * 
+   * REGLAS:
+   * - Admin: Siempre puede eliminar
+   * - Usuario con auditorias:actas_delete: Puede eliminar
    */
   const canDeleteActa = (role) => {
-    return role === 'admin';
+    if (role === 'admin') {
+      return true;
+    }
+    
+    return hasPermission('auditorias:actas_delete');
   };
 
   /**
    * Valida si el usuario puede DESCARGAR actas
-   * Todos los usuarios autenticados
+   * 
+   * REGLAS:
+   * - Todos los usuarios autenticados con auditorias:actas_download
+   * - Admin/Gerencia siempre pueden
    */
-  const canDownloadActa = () => {
-    return !!user;
+  const canDownloadActa = (role) => {
+    if (role === 'admin' || role === 'gerencia') {
+      return true;
+    }
+    
+    return hasPermission('auditorias:actas_download');
   };
 
   /**
    * Valida si el usuario puede VER detalles del acta
+   * 
+   * REGLAS:
+   * - Admin/Gerencia: Ven todas las actas
+   * - Usuario con auditorias:actas_view_all: Ve todas las actas
+   * - Usuario con auditorias:actas_view: Ve actas aprobadas + sus propias actas
+   * - Creador: Siempre ve sus propias actas
    */
   const canViewActa = (acta, userId, role) => {
     if (!acta) return false;
@@ -68,8 +103,8 @@ export const useActasPermissions = () => {
       return true;
     }
     
-    // Todos pueden ver actas aprobadas
-    if (acta.status === 'approved') {
+    // Usuario con view_all puede ver todas
+    if (hasPermission('auditorias:actas_view_all')) {
       return true;
     }
     
@@ -78,15 +113,27 @@ export const useActasPermissions = () => {
       return true;
     }
     
+    // Usuario con view puede ver actas aprobadas
+    if (hasPermission('auditorias:actas_view') && acta.status === 'approved') {
+      return true;
+    }
+    
     return false;
   };
 
   /**
    * Valida si el usuario puede APROBAR actas
-   * Solo Gerencia y Admin
+   * 
+   * REGLAS:
+   * - Admin/Gerencia: Siempre pueden aprobar
+   * - Usuario con auditorias:actas_approve: Puede aprobar
    */
   const canApproveActa = (role) => {
-    return role === 'admin' || role === 'gerencia';
+    if (role === 'admin' || role === 'gerencia') {
+      return true;
+    }
+    
+    return hasPermission('auditorias:actas_approve');
   };
 
   return {

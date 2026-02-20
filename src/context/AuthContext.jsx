@@ -1,13 +1,15 @@
-// src/context/AuthContext.jsx - VERSIÓN CON :view AUTOMÁTICOS
-// ✅ Gerencia tiene acceso total (igual que admin)
-// ✅ Permisos :view automáticos para todos los usuarios
-// ✅ Sin race conditions
+// src/context/AuthContext.jsx
+// ✅ VERSIÓN COMPLETA CON FIX DE SESIONES
+// ✅ Permisos :view automáticos
+// ✅ Sin reloads automáticos
+// ✅ Loading no se queda stuck
 
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 const AuthContext = createContext({});
 
+// ⭐ EXPORT DE useAuth (estaba faltando)
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -32,8 +34,15 @@ export const AuthProvider = ({ children }) => {
   // ==========================================
 
   const loadUserData = async (authUser) => {
+    // 🛡️ GUARD 1: Ya estamos cargando para este usuario
     if (loadingUserRef.current && currentUserIdRef.current === authUser?.id) {
       console.log('⏭️ Already loading for this user, skipping...');
+      return;
+    }
+    
+    // 🛡️ GUARD 2: Ya tenemos datos cargados para este usuario
+    if (currentUserIdRef.current === authUser?.id && dataLoadedRef.current) {
+      console.log('⏭️ Data already loaded for this user, skipping...');
       return;
     }
 
@@ -148,6 +157,7 @@ export const AuthProvider = ({ children }) => {
       setProfile(finalProfile);
       setPermissions(permissionCodes);
       dataLoadedRef.current = true;
+      setLoading(false); // ⭐ IMPORTANTE: Poner loading false aquí
 
       console.log('✅ User data loaded successfully');
       console.log('   Profile:', finalProfile?.full_name, '| Role:', finalProfile?.role);
@@ -167,9 +177,9 @@ export const AuthProvider = ({ children }) => {
       });
       setPermissions([]);
       dataLoadedRef.current = true;
+      setLoading(false); // ⭐ IMPORTANTE: Poner loading false incluso en error
     } finally {
       loadingUserRef.current = false;
-      setLoading(false);
     }
   };
 
@@ -224,7 +234,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ==========================================
-  // 🎯 HELPER FUNCTIONS - ✅ ACTUALIZADO
+  // 🎯 HELPER FUNCTIONS
   // ==========================================
 
   const isAdmin = profile?.role === 'admin';
@@ -252,13 +262,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   // ==========================================
-  // 🔄 EFECTOS
+  // 🔄 EFECTOS - VERSIÓN MEJORADA SIN RELOADS
   // ==========================================
 
   useEffect(() => {
     console.log('🚀 AuthContext: Initializing...');
 
     let mounted = true;
+    let initializationComplete = false;
 
     const initialize = async () => {
       try {
@@ -269,22 +280,25 @@ export const AuthProvider = ({ children }) => {
         if (error) {
           console.error('❌ Error getting session:', error);
           setLoading(false);
+          initializationComplete = true;
           return;
         }
 
         if (session?.user) {
           console.log('✅ Initial session found:', session.user.email);
           await loadUserData(session.user);
-          initializedRef.current = true;
         } else {
           console.log('ℹ️ No initial session');
           setLoading(false);
-          initializedRef.current = true;
         }
+        
+        initializationComplete = true;
+        initializedRef.current = true;
       } catch (error) {
         console.error('❌ Initialize error:', error);
         if (mounted) {
           setLoading(false);
+          initializationComplete = true;
           initializedRef.current = true;
         }
       }
@@ -292,77 +306,65 @@ export const AuthProvider = ({ children }) => {
 
     initialize();
 
-    // Listener solo para eventos NUEVOS
+    // Listener MEJORADO - Maneja SIGNED_OUT y SIGNED_IN
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      console.log('🔔 Auth event:', event, '| Initialized:', initializedRef.current, '| DataLoaded:', dataLoadedRef.current);
-
-      // Ignorar INITIAL_SESSION (ya lo maneja initialize)
-      if (event === 'INITIAL_SESSION') {
-        console.log('⏭️ Skipping INITIAL_SESSION');
+      // Durante inicialización, ignorar todos los eventos
+      if (!mounted || !initializationComplete) {
+        console.log(`⏭️ Skipping ${event} (still initializing)`);
         return;
       }
 
-      // Ignorar SIGNED_IN si aún no hemos terminado de inicializar
-      if (event === 'SIGNED_IN' && !initializedRef.current) {
-        console.log('⏭️ Skipping SIGNED_IN (still initializing)');
-        return;
-      }
+      console.log('🔔 Auth event:', event);
 
-      // ✅ FIX DEFINITIVO: Si ya tenemos datos cargados, NUNCA recargar en SIGNED_IN
-      if (event === 'SIGNED_IN' && session?.user) {
-        // Verificar si ya tenemos datos cargados (sin importar el ID)
-        if (dataLoadedRef.current && currentUserIdRef.current) {
-          console.log('✅ SIGNED_IN - data already loaded, ignoring (Hot Reload?)');
-          // NO hacer nada, mantener datos actuales
-          return;
-        }
-        
-        // Solo cargar si NO hay datos
-        if (!loadingUserRef.current) {
-          console.log('✅ SIGNED_IN - loading user data (first time)');
-          await loadUserData(session.user);
-        } else {
-          console.log('⏭️ SIGNED_IN - already loading, skipping');
-        }
-      } else if (event === 'SIGNED_OUT') {
+      // SIGNED_OUT - Limpiar datos
+      if (event === 'SIGNED_OUT') {
         console.log('✅ SIGNED_OUT - clearing data');
         loadingUserRef.current = false;
         currentUserIdRef.current = null;
-        initializedRef.current = false;
         dataLoadedRef.current = false;
         setUser(null);
         setProfile(null);
         setPermissions([]);
         setLoading(false);
-      } else if (event === 'TOKEN_REFRESHED') {
-        console.log('✅ TOKEN_REFRESHED - keeping session');
-        // NO recargar datos, solo mantener sesión activa
+      }
+      
+      // SIGNED_IN - Cargar datos del nuevo usuario
+      if (event === 'SIGNED_IN' && session?.user) {
+        // 🛡️ GUARD 1: Ya estamos cargando datos
+        if (loadingUserRef.current) {
+          console.log('⏭️ Already loading data, skipping SIGNED_IN');
+          return;
+        }
+        
+        // 🛡️ GUARD 2: Es el mismo usuario y datos ya cargados
+        if (currentUserIdRef.current === session.user.id && dataLoadedRef.current) {
+          console.log('⏭️ Same user with data loaded, skipping SIGNED_IN');
+          return;
+        }
+        
+        console.log('✅ SIGNED_IN - loading new user data:', session.user.email);
+        setLoading(true);
+        await loadUserData(session.user);
       }
     });
 
-    // ✅ Timeout mejorado: Solo fuerza loading=false, NO borra datos
+    // Timeout de seguridad MÁS CORTO
     const timeoutId = setTimeout(() => {
-      if (mounted && loading) {
-        if (dataLoadedRef.current) {
-          console.log('⚠️ Timeout - but data is loaded, just forcing loading=false');
-          setLoading(false);
-        } else if (!loadingUserRef.current) {
-          console.warn('⚠️ Timeout - no data loaded and not loading, forcing false');
-          setLoading(false);
-        }
+      if (mounted && loading && !dataLoadedRef.current) {
+        console.warn('⚠️ Timeout - forcing loading=false');
+        setLoading(false);
       }
-    }, 15000);
+    }, 8000); // 8 segundos en lugar de 15
 
     return () => {
       mounted = false;
+      initializationComplete = false;
       subscription.unsubscribe();
       clearTimeout(timeoutId);
     };
-  }, []); // Sin dependencias para evitar re-renders
+  }, []); // Sin dependencias
 
   // ==========================================
   // 📤 PROVIDER VALUE

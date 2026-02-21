@@ -18,6 +18,28 @@ export const getTrafficLight = (proposedDate, isClosed = false) => {
   return               { color: 'green',  label: 'Vigente' };
 };
 
+// ── Helper: obtener emails de gerencia ────────────────────────────────────────
+const getGerenciaEmails = async () => {
+  const { data } = await supabase
+    .from('profile')
+    .select('email, full_name')
+    .in('role', ['admin', 'gerencia'])
+    .eq('is_active', true);
+  return data || [];
+};
+
+// ── Helper: enviar email silencioso ──────────────────────────────────────────
+const sendEmail = async (to, type, data) => {
+  try {
+    await supabase.functions.invoke('send-document-notification', {
+      body: { type, to, data },
+    });
+    console.log(`📧 Email [${type}] enviado a: ${to}`);
+  } catch (err) {
+    console.warn(`⚠️ Email no enviado a ${to}:`, err.message);
+  }
+};
+
 // ── Hook principal ────────────────────────────────────────────────────────────
 export function useAccionesMejora() {
   const { user, profile } = useAuth();
@@ -25,7 +47,7 @@ export function useAccionesMejora() {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
 
-  // ── Cargar acciones (excluye archivadas) ──────────────────────────────────
+  // ── Cargar (excluye archivadas) ───────────────────────────────────────────
   const fetchAcciones = async () => {
     try {
       setLoading(true);
@@ -34,7 +56,7 @@ export function useAccionesMejora() {
       const { data, error: fetchError } = await supabase
         .from('improvement_action')
         .select('*')
-        .neq('status', 'archived')   // archivadas (SI) no aparecen
+        .neq('status', 'archived')
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
@@ -53,16 +75,16 @@ export function useAccionesMejora() {
         .select('id, full_name, email')
         .in('id', userIds);
 
-      const profileMap = {};
-      (profiles || []).forEach(p => { profileMap[p.id] = p; });
+      const pm = {};
+      (profiles || []).forEach(p => { pm[p.id] = p; });
 
-      setAcciones(data.map(accion => ({
-        ...accion,
-        responsible:       profileMap[accion.responsible_id] || null,
-        responsible_name:  profileMap[accion.responsible_id]?.full_name || '—',
-        responsible_email: profileMap[accion.responsible_id]?.email     || null,
-        auditor:           profileMap[accion.auditor_id]     || null,
-        creator:           profileMap[accion.created_by]     || null,
+      setAcciones(data.map(a => ({
+        ...a,
+        responsible:       pm[a.responsible_id] || null,
+        responsible_name:  pm[a.responsible_id]?.full_name || '—',
+        responsible_email: pm[a.responsible_id]?.email     || null,
+        auditor:           pm[a.auditor_id]     || null,
+        creator:           pm[a.created_by]     || null,
       })));
 
     } catch (err) {
@@ -108,12 +130,12 @@ export function useAccionesMejora() {
     }
   };
 
-  // ── Eliminar (soft delete) ────────────────────────────────────────────────
+  // ── Eliminar (DELETE físico — solo admin/gerencia por RLS) ────────────────
   const deleteAccion = async (id) => {
     try {
       const { error: deleteError } = await supabase
         .from('improvement_action')
-        .update({ deleted_at: new Date().toISOString(), status: 'archived' })
+        .delete()
         .eq('id', id);
 
       if (deleteError) throw deleteError;
@@ -126,10 +148,8 @@ export function useAccionesMejora() {
   };
 
   // ── Cerrar acción ─────────────────────────────────────────────────────────
-  //
-  //  'completed'        → Botón SI  → ARCHIVA la acción (desaparece de tabla)
-  //  'pending_solution' → Botón NO  → NO archiva, guarda nota + envía email
-  //
+  //  'completed'        → SI: archiva + email a responsable y gerencia
+  //  'pending_solution' → NO: NO archiva, solo nota + email a responsable y gerencia
   const closeAccion = async (accionId, { closure_type, closure_reason }) => {
     try {
       const accion = acciones.find(a => a.id === accionId);
@@ -153,43 +173,48 @@ export function useAccionesMejora() {
         if (updateError) throw updateError;
 
       } else {
-        // ── Seguimiento pendiente: NO archivar, solo guardar nota ────────
+        // ── Seguimiento pendiente: NO archivar ───────────────────────────
         const { error: updateError } = await supabase
           .from('improvement_action')
           .update({
             closure_type,
             closure_reason,
             closure_approved: 'NO',
-            // status e is_closed NO cambian — la acción sigue activa
           })
           .eq('id', accionId);
 
         if (updateError) throw updateError;
+      }
 
-        // Enviar email al responsable
-        if (accion?.responsible_email) {
-          try {
-            await supabase.functions.invoke('send-document-notification', {
-              body: {
-                type: 'accion_mejora_seguimiento_pendiente',
-                to:   accion.responsible_email,
-                data: {
-                  consecutive:      accion.consecutive        || '—',
-                  finding:          accion.finding_description || '—',
-                  responsible_name: accion.responsible_name   || 'Responsable',
-                  closure_reason,
-                  reviewed_by:      profile?.full_name        || 'Administrador',
-                  proposed_date:    accion.proposed_date
-                    ? new Date(accion.proposed_date).toLocaleDateString('es-CO')
-                    : 'Sin fecha',
-                },
-              },
-            });
-            console.log('📧 Email de seguimiento enviado a:', accion.responsible_email);
-          } catch (emailErr) {
-            // El email falla silenciosamente — la nota sí fue guardada
-            console.warn('⚠️ Email no enviado:', emailErr.message);
-          }
+      // ── Preparar datos del email ─────────────────────────────────────
+      const emailData = {
+        consecutive:      accion?.consecutive         || '—',
+        finding:          accion?.finding_description || '—',
+        responsible_name: accion?.responsible_name    || 'Responsable',
+        closure_reason,
+        reviewed_by:      profile?.full_name          || 'Administrador',
+        closure_type:     closure_type === 'completed'
+                          ? 'Cierre definitivo ✅'
+                          : 'En espera de solución 🕐',
+        proposed_date:    accion?.proposed_date
+          ? new Date(accion.proposed_date).toLocaleDateString('es-CO')
+          : 'Sin fecha',
+      };
+
+      const emailType = closure_type === 'completed'
+        ? 'accion_mejora_cierre_definitivo'
+        : 'accion_mejora_seguimiento_pendiente';
+
+      // ── Email al responsable ─────────────────────────────────────────
+      if (accion?.responsible_email) {
+        await sendEmail(accion.responsible_email, emailType, emailData);
+      }
+
+      // ── Email a gerencia (sin duplicar si ya es responsable) ─────────
+      const gerencia = await getGerenciaEmails();
+      for (const g of gerencia) {
+        if (g.email !== accion?.responsible_email) {
+          await sendEmail(g.email, emailType, emailData);
         }
       }
 
@@ -198,7 +223,7 @@ export function useAccionesMejora() {
 
     } catch (err) {
       console.error('❌ Error cerrando acción:', err);
-      throw err; // El modal lo captura
+      throw err;
     }
   };
 
@@ -216,7 +241,7 @@ export function useAccionesMejora() {
   };
 }
 
-// ── Hook perfiles ─────────────────────────────────────────────────────────────
+// ── Hook perfiles (selector de responsable) ───────────────────────────────────
 export function useProfiles() {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading]   = useState(false);

@@ -4,6 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/app
 import { Button } from '@/app/components/ui/button';
 import { Input }  from '@/app/components/ui/input';
 import { Alert, AlertDescription } from '@/app/components/ui/alert';
+// Agregar junto a los imports existentes:
+import { FileDown } from 'lucide-react';
+import { exportAccionesMejora } from '@/utils/exportAccionesMejora';
+import { supabase } from '@/lib/supabase';
 import {
   Plus, Search, RefreshCw, Filter, Loader2,
   AlertTriangle, ChevronLeft, Edit, Trash2, Eye, Archive, CheckCircle2
@@ -11,10 +15,9 @@ import {
 import { useAccionesMejora, getTrafficLight } from '@/hooks/useAccionesMejora';
 import { useProcesses } from '@/hooks/useDocuments';
 import { useAuth } from '@/context/AuthContext';
-import AccionMejoraModal  from './AccionMejoraModal';
-import CierreAccionModal  from './CierreAccionModal';
+import AccionMejoraModal from './AccionMejoraModal';
+import CierreAccionModal from './CierreAccionModal';
 
-// ─── Colores Excel ────────────────────────────────────────────────────────────
 const XL = {
   identificacion: '#FFD966',
   analisis:       '#9DC3E6',
@@ -33,34 +36,29 @@ const XL = {
   accBg:          '#EDF7ED',
 };
 
-// ─── Componentes de tabla ─────────────────────────────────────────────────────
 const HHead = ({ children, bg, colSpan = 1, rowSpan = 1, textColor = '#1F2937', small = false }) => (
   <th colSpan={colSpan} rowSpan={rowSpan} style={{
-    backgroundColor: bg,
-    border: `1px solid ${XL.border}`,
+    backgroundColor: bg, border: `1px solid ${XL.border}`,
     textAlign: 'center', verticalAlign: 'middle',
     padding: small ? '2px 2px' : '3px 4px',
     fontSize: small ? 8 : 9, fontWeight: 700,
     textTransform: 'uppercase', color: textColor, whiteSpace: 'nowrap',
-  }}>
-    {children}
-  </th>
+  }}>{children}</th>
 );
 
 const VHead = ({ children, rowSpan = 1, colSpan = 1, w = 26 }) => {
   const lines = typeof children === 'string' ? children.split('|') : [children];
   return (
     <th rowSpan={rowSpan} colSpan={colSpan} style={{
-      backgroundColor: XL.colBg,
-      border: `1px solid ${XL.border}`,
+      backgroundColor: XL.colBg, border: `1px solid ${XL.border}`,
       padding: 0, width: w, minWidth: w, maxWidth: w,
     }}>
-      <div style={{ display:'flex', justifyContent:'center', alignItems:'flex-end', height:90, paddingBottom:4 }}>
+      <div style={{ display:'flex', justifyContent:'center', alignItems:'flex-end', height: 90, paddingBottom: 4 }}>
         <div style={{
           writingMode:'vertical-rl', transform:'rotate(180deg)',
-          fontSize:8, fontWeight:600, textTransform:'uppercase',
-          color:'#1F2937', textAlign:'center', lineHeight:1.3,
-          display:'flex', flexDirection:'column', alignItems:'center', gap:0,
+          fontSize: 8, fontWeight: 600, textTransform: 'uppercase',
+          color: '#1F2937', textAlign: 'center', lineHeight: 1.3,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0,
         }}>
           {lines.map((line, i) => <span key={i} style={{ whiteSpace:'nowrap', display:'block' }}>{line}</span>)}
         </div>
@@ -71,13 +69,11 @@ const VHead = ({ children, rowSpan = 1, colSpan = 1, w = 26 }) => {
 
 const Cell = ({ children, center, bold, color, maxW, bg }) => (
   <td style={{
-    border: `1px solid ${XL.border}`, padding: '2px 3px', fontSize: 9,
+    border: `1px solid ${XL.border}`, padding: '3px 4px', fontSize: 10,
     textAlign: center ? 'center' : 'left', fontWeight: bold ? 600 : 400,
     color: color || '#1F2937', maxWidth: maxW, verticalAlign: 'middle',
     backgroundColor: bg, wordBreak: 'break-word', overflowWrap: 'break-word',
-  }}>
-    {children}
-  </td>
+  }}>{children}</td>
 );
 
 const Fecha = ({ v }) => {
@@ -88,17 +84,15 @@ const Fecha = ({ v }) => {
 };
 
 const Tick = ({ v }) =>
-  v ? <span style={{ color: '#2e5244', fontSize: 11, fontWeight: 700 }}>✓</span>
+  v ? <span style={{ color: '#2e5244', fontSize: 12, fontWeight: 700 }}>✓</span>
     : <span style={{ color: '#E0E0E0' }}>-</span>;
 
 const Clamp = ({ v, muted }) => (
   <div style={{
     display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
     overflow: 'hidden', color: muted ? '#6B7280' : '#1F2937',
-    fontSize: 9, wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal',
-  }} title={v || ''}>
-    {v || '-'}
-  </div>
+    fontSize: 10, wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal',
+  }} title={v || ''}>{v || '-'}</div>
 );
 
 function Semaforo({ proposedDate, isClosed }) {
@@ -107,45 +101,40 @@ function Semaforo({ proposedDate, isClosed }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'center' }}>
       <div title={label} style={{
-        width: 11, height: 11, borderRadius: '50%',
-        backgroundColor: map[color],
-        boxShadow: `0 0 3px ${map[color]}`,
+        width: 12, height: 12, borderRadius: '50%',
+        backgroundColor: map[color], boxShadow: `0 0 3px ${map[color]}`,
         border: '1px solid rgba(0,0,0,0.12)',
       }} />
     </div>
   );
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
 export default function AccionesMejoraManager({ onBack }) {
   const { user, profile } = useAuth();
-  const role       = profile?.role;
-  const canManage  = ['admin', 'gerencia'].includes(role);
+  const role      = profile?.role;
+  const canManage = ['admin', 'gerencia'].includes(role);
 
-  // ── Estado de modales ────────────────────────────────────────────────────
-  const [modalOpen,      setModalOpen]      = useState(false);
-  const [modalMode,      setModalMode]      = useState('create');
-  const [selected,       setSelected]       = useState(null);
-  const [cierreOpen,     setCierreOpen]     = useState(false);
-  const [accionACerrar,  setAccionACerrar]  = useState(null);
+  const [exporting, setExporting] = useState(false);
 
-  // ── Estado de UI ─────────────────────────────────────────────────────────
-  const [search,       setSearch]       = useState('');
-  const [showFilters,  setShowFilters]  = useState(false);
-  const [fStatus,      setFStatus]      = useState('');
-  const [actionMsg,    setActionMsg]    = useState(null); // { type: 'success'|'error', text }
+  const [modalOpen,     setModalOpen]     = useState(false);
+  const [modalMode,     setModalMode]     = useState('create');
+  const [selected,      setSelected]      = useState(null);
+  const [cierreOpen,    setCierreOpen]    = useState(false);
+  const [accionACerrar, setAccionACerrar] = useState(null);
+  const [search,        setSearch]        = useState('');
+  const [showFilters,   setShowFilters]   = useState(false);
+  const [fStatus,       setFStatus]       = useState('');
+  const [actionMsg,     setActionMsg]     = useState(null);
 
   const { acciones, loading, error, fetchAcciones, deleteAccion, closeAccion } = useAccionesMejora();
   const { processes = [] } = useProcesses() || {};
 
-  // ── Filas filtradas ───────────────────────────────────────────────────────
   const rows = acciones.filter(a =>
     (!search  || a.consecutive?.toLowerCase().includes(search.toLowerCase())
               || a.finding_description?.toLowerCase().includes(search.toLowerCase()))
     && (!fStatus || a.status === fStatus)
   );
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = {
     total: acciones.length,
     open:  acciones.filter(a => a.status === 'open').length,
@@ -154,7 +143,6 @@ export default function AccionesMejoraManager({ onBack }) {
              && new Date(a.proposed_date + 'T00:00:00') < new Date()).length,
   };
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   const procName = (id) => processes.find(p => p.id === id)?.name || '-';
 
   const showMsg = (type, text) => {
@@ -164,39 +152,91 @@ export default function AccionesMejoraManager({ onBack }) {
 
   const openModal = (mode, a = null) => { setModalMode(mode); setSelected(a); setModalOpen(true); };
 
-  // ── Abrir modal de cierre (SI o NO) ──────────────────────────────────────
-  // Ambos botones (SI y NO) abren el mismo modal — la diferencia es que
-  // "NO" no cierra definitivamente sino que registra un cierre pendiente
   const openCierre = (a) => {
-    setAccionACerrar({
-      ...a,
-      responsible_name: a.responsible_name || a.responsible?.full_name || '—',
-    });
+    setAccionACerrar({ ...a, responsible_name: a.responsible_name || a.responsible?.full_name || '—' });
     setCierreOpen(true);
   };
 
-  // ── Confirmar cierre desde el modal ──────────────────────────────────────
   const handleConfirmCierre = async (accionId, payload) => {
-    await closeAccion(accionId, payload); // lanza error si falla → modal lo muestra
-    showMsg('success', `✅ Acción archivada correctamente.`);
+    await closeAccion(accionId, payload);
+    showMsg('success', '✅ Acción procesada correctamente.');
   };
 
-  // ── Eliminar ──────────────────────────────────────────────────────────────
   const handleDelete = async (a) => {
-    if (!window.confirm(`¿Eliminar ${a.consecutive}?`)) return;
+    if (!window.confirm(`¿Eliminar ${a.consecutive}? Esta acción no se puede deshacer.`)) return;
     const r = await deleteAccion(a.id);
-    if (r.success) {
-      showMsg('success', `🗑️ Acción ${a.consecutive} eliminada.`);
-    } else {
-      showMsg('error', `Error al eliminar: ${r.error}`);
-    }
+    if (r.success) showMsg('success', `🗑️ Acción ${a.consecutive} eliminada.`);
+    else           showMsg('error',   `Error al eliminar: ${r.error}`);
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Exportar filas visibles en pantalla ──────────────────────────────
+const handleExportVisible = async () => {
+  if (rows.length === 0) return;
+  setExporting(true);
+  try {
+    await exportAccionesMejora(
+      rows,
+      (id) => procName(id),
+      'AccionesMejora_Filtradas'
+    );
+    showMsg('success', `✅ Excel generado con ${rows.length} acción(es).`);
+  } catch {
+    showMsg('error', '❌ Error al generar el Excel.');
+  } finally {
+    setExporting(false);
+  }
+};
+
+// ── Exportar TODAS las acciones desde BD (sin filtros) ───────────────
+const handleExportAll = async () => {
+  setExporting(true);
+  try {
+    const { data, error: fetchErr } = await supabase
+      .from('improvement_action')
+      .select('*')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (fetchErr) throw fetchErr;
+
+    // Enriquecer con nombres de perfiles
+    const ids = [...new Set([
+      ...data.map(a => a.responsible_id),
+      ...data.map(a => a.auditor_id),
+    ].filter(Boolean))];
+
+    const { data: profiles } = await supabase
+      .from('profile')
+      .select('id, full_name, email')
+      .in('id', ids);
+
+    const pm = {};
+    (profiles || []).forEach(p => { pm[p.id] = p; });
+
+    const enriquecidas = data.map(a => ({
+      ...a,
+      responsible_name:  pm[a.responsible_id]?.full_name || '—',
+      responsible_email: pm[a.responsible_id]?.email     || null,
+      auditor:           pm[a.auditor_id]     || null,
+    }));
+
+    await exportAccionesMejora(
+      enriquecidas,
+      (id) => procName(id),
+      'AccionesMejora_Completo'
+    );
+    showMsg('success', `✅ Excel con ${enriquecidas.length} acción(es) generado.`);
+  } catch {
+    showMsg('error', '❌ Error al exportar todo.');
+  } finally {
+    setExporting(false);
+  }
+};
+
   return (
     <div className="space-y-4 px-2">
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ChevronLeft className="h-4 w-4 mr-1" />Volver
@@ -209,23 +249,20 @@ export default function AccionesMejoraManager({ onBack }) {
         </div>
       </div>
 
-      {/* ── Mensaje de acción (reemplaza alert) ────────────────────────── */}
+      {/* Mensaje flash */}
       {actionMsg && (
-        <Alert
-          variant={actionMsg.type === 'error' ? 'destructive' : 'default'}
-          className={actionMsg.type === 'success' ? 'border-green-400 bg-green-50' : ''}
-        >
+        <Alert variant={actionMsg.type === 'error' ? 'destructive' : 'default'}
+          className={actionMsg.type === 'success' ? 'border-green-400 bg-green-50' : ''}>
           {actionMsg.type === 'success'
             ? <CheckCircle2 className="h-4 w-4 text-green-600" />
-            : <AlertTriangle className="h-4 w-4" />
-          }
+            : <AlertTriangle className="h-4 w-4" />}
           <AlertDescription className={actionMsg.type === 'success' ? 'text-green-700' : ''}>
             {actionMsg.text}
           </AlertDescription>
         </Alert>
       )}
 
-      {/* ── Stats ───────────────────────────────────────────────────────── */}
+      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Total',       v: stats.total, color: '#6dbd96' },
@@ -242,7 +279,7 @@ export default function AccionesMejoraManager({ onBack }) {
         ))}
       </div>
 
-      {/* ── Tabla ───────────────────────────────────────────────────────── */}
+      {/* Tabla */}
       <Card className="border-2" style={{ borderColor: '#6dbd96' }}>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -258,8 +295,6 @@ export default function AccionesMejoraManager({ onBack }) {
         </CardHeader>
 
         <CardContent className="space-y-3">
-
-          {/* Búsqueda + Filtros */}
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -270,9 +305,37 @@ export default function AccionesMejoraManager({ onBack }) {
             <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
               <Filter className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={fetchAcciones}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+           <Button variant="outline" size="sm" onClick={fetchAcciones}>
+  <RefreshCw className="h-4 w-4" />
+</Button>
+
+{/* Botón exportar visible */}
+<Button
+  variant="outline" size="sm"
+  onClick={handleExportVisible}
+  disabled={exporting || rows.length === 0}
+  title={`Exportar ${rows.length} acción(es) visibles`}
+  className="border-green-300 text-green-700 hover:bg-green-50"
+>
+  {exporting
+    ? <Loader2 className="h-4 w-4 animate-spin" />
+    : <><FileDown className="h-4 w-4 mr-1" />{rows.length}</>
+  }
+</Button>
+
+{/* Botón exportar todo */}
+<Button
+  variant="outline" size="sm"
+  onClick={handleExportAll}
+  disabled={exporting}
+  title="Exportar todas las acciones de la BD"
+  className="border-blue-300 text-blue-700 hover:bg-blue-50"
+>
+  {exporting
+    ? <Loader2 className="h-4 w-4 animate-spin" />
+    : <><FileDown className="h-4 w-4 mr-1" />Todo</>
+  }
+</Button>
           </div>
 
           {showFilters && (
@@ -287,24 +350,31 @@ export default function AccionesMejoraManager({ onBack }) {
                 </select>
               </div>
               <div className="flex items-end">
-                <Button variant="outline" size="sm"
-                  onClick={() => { setFStatus(''); setSearch(''); }}>
+                <Button variant="outline" size="sm" onClick={() => { setFStatus(''); setSearch(''); }}>
                   Limpiar
                 </Button>
               </div>
             </div>
           )}
 
-          {/* Tabla Excel */}
-          <div className="border rounded-lg" style={{ overflowX: 'auto' }}>
-            <div style={{ fontSize: '85%', zoom: '0.62', minWidth: 'fit-content' }}>
+          {/*
+            ── Tabla Excel ──
+            El wrapper exterior maneja el scroll horizontal.
+            paddingBottom: 16 → deja espacio entre la última fila y el scrollbar
+            para que la barra no tape el contenido.
+          */}
+          <div
+            className="border rounded-lg"
+            style={{ overflowX: 'auto', paddingBottom: 2 }}
+          >
+            <div style={{ zoom: '0.75', minWidth: 'fit-content', paddingBottom: 8 }}>
               {loading ? (
                 <div className="flex items-center justify-center p-12">
                   <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#6dbd96' }} />
                   <span className="ml-3 text-gray-600">Cargando acciones...</span>
                 </div>
               ) : error ? (
-                <div className="text-center p-8">
+                <div className="p-8 text-center">
                   <Alert variant="destructive" className="max-w-sm mx-auto">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription>{error}</AlertDescription>
@@ -317,7 +387,7 @@ export default function AccionesMejoraManager({ onBack }) {
                   <p className="text-sm mt-1">Crea la primera usando "Nueva Acción"</p>
                 </div>
               ) : (
-                <table style={{ borderCollapse:'collapse', width:'100%', tableLayout:'fixed' }}>
+                <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
                   <colgroup>
                     <col style={{ width: 56 }} />
                     <col style={{ width: 70 }} />
@@ -350,7 +420,6 @@ export default function AccionesMejoraManager({ onBack }) {
                   </colgroup>
 
                   <thead>
-                    {/* ═══ FILA 1: SECCIONES ═══ */}
                     <tr>
                       <HHead bg="#E2EFDA" rowSpan={3}>ACC.</HHead>
                       <HHead bg={XL.identificacion} colSpan={10}>IDENTIFICACIÓN</HHead>
@@ -358,8 +427,6 @@ export default function AccionesMejoraManager({ onBack }) {
                       <HHead bg={XL.plan}           colSpan={5} textColor="#FFFFFF">PLAN DE ACCIÓN</HHead>
                       <HHead bg={XL.verificacion}   colSpan={8} textColor="#FFFFFF">VERIFICACIÓN</HHead>
                     </tr>
-
-                    {/* ═══ FILA 2: SUB-SECCIONES ═══ */}
                     <tr>
                       <VHead rowSpan={2} w={70}>Consecutivo</VHead>
                       <VHead rowSpan={2} w={52}>Fecha</VHead>
@@ -380,8 +447,6 @@ export default function AccionesMejoraManager({ onBack }) {
                       <HHead bg={XL.subCierre} colSpan={2} small>CIERRE</HHead>
                       <VHead rowSpan={2} w={80}>Auditor</VHead>
                     </tr>
-
-                    {/* ═══ FILA 3: COLUMNAS DETALLE ═══ */}
                     <tr>
                       <VHead w={26}>Auditoría</VHead>
                       <VHead w={26}>QRS</VHead>
@@ -403,52 +468,45 @@ export default function AccionesMejoraManager({ onBack }) {
                     {rows.map((a, idx) => {
                       const light     = getTrafficLight(a.proposed_date, a.is_closed);
                       const isOverdue = light.color === 'red' && !a.is_closed;
-                      const bg        = isOverdue ? XL.rowOverdue
-                                      : idx % 2 === 0 ? XL.rowOdd : XL.rowEven;
+                      const bg        = isOverdue ? XL.rowOverdue : idx % 2 === 0 ? XL.rowOdd : XL.rowEven;
                       return (
-                        <tr key={a.id}
-                          style={{ backgroundColor: bg }}
+                        <tr key={a.id} style={{ backgroundColor: bg }}
                           onMouseEnter={e => e.currentTarget.style.backgroundColor = XL.rowHover}
-                          onMouseLeave={e => e.currentTarget.style.backgroundColor = bg}
-                        >
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = bg}>
+
                           {/* ACC */}
                           <td style={{
-                            border:`1px solid ${XL.border}`, padding:'2px 2px',
-                            textAlign:'center', verticalAlign:'middle',
-                            backgroundColor: XL.accBg,
+                            border: `1px solid ${XL.border}`, padding: '2px',
+                            textAlign: 'center', verticalAlign: 'middle', backgroundColor: XL.accBg,
                           }}>
-                            <div style={{ display:'flex', gap:2, justifyContent:'center' }}>
+                            <div style={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
                               <button onClick={() => openModal('view', a)} title="Ver"
                                 style={{ background:'none', border:'none', cursor:'pointer', padding:1, borderRadius:3 }}>
-                                <Eye style={{ width:12, height:12, color:'#3B82F6' }} />
+                                <Eye style={{ width:13, height:13, color:'#3B82F6' }} />
                               </button>
                               {(canManage || a.created_by === user?.id) && !a.is_closed && (
                                 <button onClick={() => openModal('edit', a)} title="Editar"
                                   style={{ background:'none', border:'none', cursor:'pointer', padding:1, borderRadius:3 }}>
-                                  <Edit style={{ width:12, height:12, color:'#6B7280' }} />
+                                  <Edit style={{ width:13, height:13, color:'#6B7280' }} />
                                 </button>
                               )}
                               {canManage && (
                                 <button onClick={() => handleDelete(a)} title="Eliminar"
                                   style={{ background:'none', border:'none', cursor:'pointer', padding:1, borderRadius:3 }}>
-                                  <Trash2 style={{ width:12, height:12, color:'#EF4444' }} />
+                                  <Trash2 style={{ width:13, height:13, color:'#EF4444' }} />
                                 </button>
                               )}
                             </div>
                           </td>
 
-                          {/* IDENTIFICACIÓN */}
                           <Cell center bold color="#2e5244">{a.consecutive}</Cell>
                           <Cell center><Fecha v={a.date} /></Cell>
                           <Cell>
                             <span style={{
-                              background:'#6dbd9618', color:'#2e5244',
-                              padding:'1px 4px', borderRadius:3, fontSize:8,
-                              whiteSpace:'nowrap', overflow:'hidden',
-                              display:'block', textOverflow:'ellipsis',
-                            }}>
-                              {procName(a.process_id)}
-                            </span>
+                              background:'#6dbd9618', color:'#2e5244', padding:'1px 4px',
+                              borderRadius:3, fontSize:9, whiteSpace:'nowrap',
+                              overflow:'hidden', display:'block', textOverflow:'ellipsis',
+                            }}>{procName(a.process_id)}</span>
                           </Cell>
                           <Cell center><Tick v={a.origin_audit} /></Cell>
                           <Cell center><Tick v={a.origin_qrs} /></Cell>
@@ -457,21 +515,15 @@ export default function AccionesMejoraManager({ onBack }) {
                           <Cell center><Tick v={a.origin_risk_analysis} /></Cell>
                           <Cell center><Tick v={a.origin_nonconforming} /></Cell>
                           <Cell><Clamp v={a.finding_description} /></Cell>
-
-                          {/* ANÁLISIS */}
                           <Cell center><Tick v={a.action_correction} /></Cell>
                           <Cell center><Tick v={a.action_corrective} /></Cell>
                           <Cell center><Tick v={a.action_preventive} /></Cell>
                           <Cell><Clamp v={a.causes} muted /></Cell>
-
-                          {/* PLAN */}
                           <Cell><Clamp v={a.action_description} /></Cell>
                           <Cell><Clamp v={a.expected_results} muted /></Cell>
                           <Cell><Clamp v={a.resources_budget} muted /></Cell>
                           <Cell bold>{a.responsible?.full_name || a.responsible_name || '-'}</Cell>
                           <Cell center><Fecha v={a.proposed_date} /></Cell>
-
-                          {/* VERIFICACIÓN */}
                           <Cell><Clamp v={a.verification_criteria} muted /></Cell>
                           <Cell><Clamp v={a.verification_finding} muted /></Cell>
                           <Cell center><Fecha v={a.verification_date} /></Cell>
@@ -480,58 +532,29 @@ export default function AccionesMejoraManager({ onBack }) {
                             <Semaforo proposedDate={a.proposed_date} isClosed={a.is_closed} />
                           </Cell>
 
-                          {/* ── CIERRE SI ── */}
-                          <td style={{
-                            border:`1px solid ${XL.border}`, textAlign:'center',
-                            verticalAlign:'middle', padding:'2px',
-                          }}>
+                          {/* CIERRE SI */}
+                          <td style={{ border:`1px solid ${XL.border}`, textAlign:'center', verticalAlign:'middle', padding:'2px' }}>
                             {canManage && !a.is_closed ? (
-                              // Botón SI → abre CierreAccionModal
-                              <button
-                                onClick={() => openCierre(a)}
-                                title="Cerrar acción"
-                                style={{
-                                  backgroundColor:'#22c55e', color:'white', border:'none',
-                                  borderRadius:3, padding:'1px 4px', fontSize:8,
-                                  fontWeight:700, cursor:'pointer',
-                                }}
-                              >
-                                SI
-                              </button>
+                              <button onClick={() => openCierre(a)} style={{
+                                backgroundColor:'#22c55e', color:'white', border:'none',
+                                borderRadius:3, padding:'1px 5px', fontSize:9, fontWeight:700, cursor:'pointer',
+                              }}>SI</button>
                             ) : (
-                              <span style={{
-                                fontSize:9, fontWeight:700,
-                                color: a.closure_approved === 'SI' ? '#22c55e' : '#D1D5DB',
-                              }}>
+                              <span style={{ fontSize:10, fontWeight:700, color: a.closure_approved === 'SI' ? '#22c55e' : '#D1D5DB' }}>
                                 {a.closure_approved === 'SI' ? '✓' : '-'}
                               </span>
                             )}
                           </td>
 
-                          {/* ── CIERRE NO ── */}
-                          <td style={{
-                            border:`1px solid ${XL.border}`, textAlign:'center',
-                            verticalAlign:'middle', padding:'2px',
-                          }}>
+                          {/* CIERRE NO */}
+                          <td style={{ border:`1px solid ${XL.border}`, textAlign:'center', verticalAlign:'middle', padding:'2px' }}>
                             {canManage && !a.is_closed ? (
-                              // Botón NO → también abre CierreAccionModal
-                              // El usuario elige dentro del modal "pending_solution"
-                              <button
-                                onClick={() => openCierre(a)}
-                                title="Cerrar con seguimiento pendiente"
-                                style={{
-                                  backgroundColor:'#9CA3AF', color:'white', border:'none',
-                                  borderRadius:3, padding:'1px 4px', fontSize:8,
-                                  fontWeight:700, cursor:'pointer',
-                                }}
-                              >
-                                NO
-                              </button>
+                              <button onClick={() => openCierre(a)} style={{
+                                backgroundColor:'#9CA3AF', color:'white', border:'none',
+                                borderRadius:3, padding:'1px 5px', fontSize:9, fontWeight:700, cursor:'pointer',
+                              }}>NO</button>
                             ) : (
-                              <span style={{
-                                fontSize:9, fontWeight:700,
-                                color: a.closure_approved === 'NO' ? '#6B7280' : '#D1D5DB',
-                              }}>
+                              <span style={{ fontSize:10, fontWeight:700, color: a.closure_approved === 'NO' ? '#6B7280' : '#D1D5DB' }}>
                                 {a.closure_approved === 'NO' ? '✓' : '-'}
                               </span>
                             )}
@@ -552,11 +575,10 @@ export default function AccionesMejoraManager({ onBack }) {
               {rows.length} acción(es) activa(s)
             </p>
           )}
-
         </CardContent>
       </Card>
 
-      {/* ── Modal crear / editar / ver ───────────────────────────────────── */}
+      {/* Modal crear/editar/ver */}
       {modalOpen && (
         <AccionMejoraModal
           isOpen={modalOpen}
@@ -567,14 +589,13 @@ export default function AccionesMejoraManager({ onBack }) {
         />
       )}
 
-      {/* ── Modal de cierre ──────────────────────────────────────────────── */}
+      {/* Modal cierre */}
       <CierreAccionModal
         open={cierreOpen}
         accion={accionACerrar}
         onClose={() => { setCierreOpen(false); setAccionACerrar(null); }}
         onConfirm={handleConfirmCierre}
       />
-
     </div>
   );
 }

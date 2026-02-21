@@ -1,27 +1,23 @@
 // src/components/modules/MejoramientoContinuo/AccionesMejora/AccionMejoraModal.jsx
 import { useState, useEffect } from 'react';
 import { Button } from '@/app/components/ui/button';
-import { Input } from '@/app/components/ui/input';
+import { Input }  from '@/app/components/ui/input';
 import { Loader2, X, Save } from 'lucide-react';
 import { useAccionesMejora, useProfiles } from '@/hooks/useAccionesMejora';
 import { useProcesses } from '@/hooks/useDocuments';
 
-// Sección con color de encabezado
 function Section({ title, color = '#2e5244', children }) {
   return (
     <div className="rounded-lg border-2 overflow-hidden" style={{ borderColor: color }}>
       <div className="px-4 py-2 text-white text-xs font-bold uppercase tracking-wider"
-           style={{ backgroundColor: color }}>
+        style={{ backgroundColor: color }}>
         {title}
       </div>
-      <div className="p-4 space-y-3 bg-white">
-        {children}
-      </div>
+      <div className="p-4 space-y-3 bg-white">{children}</div>
     </div>
   );
 }
 
-// Campo con label
 function Field({ label, required, children }) {
   return (
     <div className="space-y-1">
@@ -33,7 +29,6 @@ function Field({ label, required, children }) {
   );
 }
 
-// Checkbox con estilo
 function CheckItem({ label, checked, onChange, disabled }) {
   return (
     <label className={`flex items-center gap-2 p-2 rounded border text-xs cursor-pointer transition-colors
@@ -48,27 +43,15 @@ function CheckItem({ label, checked, onChange, disabled }) {
 
 const FORM_INICIAL = {
   date: new Date().toISOString().split('T')[0],
-  process_id: '',
-  origin_audit: false,
-  origin_satisfaction: false,
-  origin_qrs: false,
-  origin_autocontrol: false,
-  origin_risk_analysis: false,
-  origin_nonconforming: false,
-  finding_description: '',
-  action_correction: false,
-  action_corrective: false,
-  action_preventive: false,
-  causes: '',
-  action_description: '',
-  expected_results: '',
-  resources_budget: '',
-  responsible_id: '',
-  proposed_date: '',
-  verification_criteria: '',
-  verification_finding: '',
-  verification_date: '',
-  efficacy_date: '',
+  process_id: '', origin_audit: false, origin_satisfaction: false,
+  origin_qrs: false, origin_autocontrol: false,
+  origin_risk_analysis: false, origin_nonconforming: false,
+  finding_description: '', action_correction: false,
+  action_corrective: false, action_preventive: false,
+  causes: '', action_description: '', expected_results: '',
+  resources_budget: '', responsible_id: '', proposed_date: '',
+  verification_criteria: '', verification_finding: '',
+  verification_date: '', efficacy_date: '',
 };
 
 export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuccess }) {
@@ -77,14 +60,13 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
   const isCreate = mode === 'create';
 
   const { createAccion, updateAccion } = useAccionesMejora();
-  const { profiles } = useProfiles();
+  const { profiles }       = useProfiles();
   const { processes = [] } = useProcesses() || {};
 
-  const [form, setForm]       = useState(FORM_INICIAL);
-  const [errors, setErrors]   = useState({});
-  const [saving, setSaving]   = useState(false);
+  const [form,   setForm]   = useState(FORM_INICIAL);
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
 
-  // Cargar datos al editar/ver
   useEffect(() => {
     if (accion && (isEdit || isView)) {
       setForm({
@@ -122,22 +104,18 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
   };
 
-  // Validaciones
   const validate = () => {
     const e = {};
-    if (!form.date)                  e.date = 'Obligatorio';
-    if (!form.process_id)            e.process_id = 'Obligatorio';
+    if (!form.date)                        e.date = 'Obligatorio';
+    if (!form.process_id)                  e.process_id = 'Obligatorio';
     if (!form.finding_description?.trim()) e.finding_description = 'Obligatorio';
-    if (!form.responsible_id)        e.responsible_id = 'Obligatorio';
-    if (!form.proposed_date)         e.proposed_date = 'Obligatorio';
-
+    if (!form.responsible_id)             e.responsible_id = 'Obligatorio';
+    if (!form.proposed_date)              e.proposed_date = 'Obligatorio';
     const hasOrigen = form.origin_audit || form.origin_satisfaction || form.origin_qrs
       || form.origin_autocontrol || form.origin_risk_analysis || form.origin_nonconforming;
     if (!hasOrigen) e.origin = 'Selecciona al menos uno';
-
     const hasTipo = form.action_correction || form.action_corrective || form.action_preventive;
     if (!hasTipo) e.action_type = 'Selecciona al menos uno';
-
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -149,12 +127,8 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
       const result = isCreate
         ? await createAccion(form)
         : await updateAccion(accion.id, form);
-
-      if (result.success) {
-        onSuccess();
-      } else {
-        alert('Error: ' + result.error);
-      }
+      if (result.success) onSuccess();
+      else alert('Error: ' + result.error);
     } finally {
       setSaving(false);
     }
@@ -163,14 +137,19 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 overflow-y-auto"
+    // ── Overlay centrado ────────────────────────────────────────────────────
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-
-      <div className="relative w-full max-w-4xl my-4 rounded-xl shadow-2xl bg-white overflow-hidden">
-
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      {/* ── Modal centrado ─────────────────────────────────────────────────── */}
+      <div
+        className="relative flex flex-col bg-white rounded-xl shadow-2xl w-full"
+        style={{ maxWidth: '860px', maxHeight: '90vh' }}
+      >
         {/* Header */}
-        <div className="px-6 py-4 flex items-center justify-between"
+        <div className="flex-shrink-0 px-6 py-4 rounded-t-xl flex items-center justify-between"
           style={{ background: 'linear-gradient(135deg, #2e5244 0%, #6dbd96 100%)' }}>
           <div>
             <h2 className="text-lg font-bold text-white">
@@ -188,8 +167,8 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 space-y-5 overflow-y-auto" style={{ maxHeight: '78vh' }}>
+        {/* Body con scroll */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
 
           {/* ── IDENTIFICACIÓN ── */}
           <Section title="🔍 Identificación" color="#2e5244">
@@ -200,7 +179,6 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
                   className={errors.date ? 'border-red-400' : ''} />
                 {errors.date && <p className="text-red-500 text-xs">{errors.date}</p>}
               </Field>
-
               <Field label="Proceso" required>
                 <select value={form.process_id} disabled={isView}
                   onChange={e => set('process_id', e.target.value)}
@@ -212,15 +190,14 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
               </Field>
             </div>
 
-            {/* Origen */}
             <Field label="Origen del hallazgo" required>
               <div className="grid grid-cols-3 gap-2">
-                <CheckItem label="Auditoría"                 checked={form.origin_audit}         disabled={isView} onChange={() => set('origin_audit',         !form.origin_audit)} />
-                <CheckItem label="Satisfacción del cliente"  checked={form.origin_satisfaction}  disabled={isView} onChange={() => set('origin_satisfaction',  !form.origin_satisfaction)} />
-                <CheckItem label="QRS"                       checked={form.origin_qrs}           disabled={isView} onChange={() => set('origin_qrs',           !form.origin_qrs)} />
-                <CheckItem label="Autocontrol / Gest. cambio" checked={form.origin_autocontrol} disabled={isView} onChange={() => set('origin_autocontrol',   !form.origin_autocontrol)} />
-                <CheckItem label="Análisis de riesgos"       checked={form.origin_risk_analysis} disabled={isView} onChange={() => set('origin_risk_analysis', !form.origin_risk_analysis)} />
-                <CheckItem label="Pto no conforme"           checked={form.origin_nonconforming} disabled={isView} onChange={() => set('origin_nonconforming', !form.origin_nonconforming)} />
+                <CheckItem label="Auditoría"                  checked={form.origin_audit}         disabled={isView} onChange={() => set('origin_audit',         !form.origin_audit)} />
+                <CheckItem label="Satisfacción del cliente"   checked={form.origin_satisfaction}  disabled={isView} onChange={() => set('origin_satisfaction',  !form.origin_satisfaction)} />
+                <CheckItem label="QRS"                        checked={form.origin_qrs}           disabled={isView} onChange={() => set('origin_qrs',           !form.origin_qrs)} />
+                <CheckItem label="Autocontrol / Gest. cambio" checked={form.origin_autocontrol}   disabled={isView} onChange={() => set('origin_autocontrol',   !form.origin_autocontrol)} />
+                <CheckItem label="Análisis de riesgos"        checked={form.origin_risk_analysis} disabled={isView} onChange={() => set('origin_risk_analysis', !form.origin_risk_analysis)} />
+                <CheckItem label="Pto no conforme"            checked={form.origin_nonconforming} disabled={isView} onChange={() => set('origin_nonconforming', !form.origin_nonconforming)} />
               </div>
               {errors.origin && <p className="text-red-500 text-xs mt-1">{errors.origin}</p>}
             </Field>
@@ -245,7 +222,6 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
               </div>
               {errors.action_type && <p className="text-red-500 text-xs mt-1">{errors.action_type}</p>}
             </Field>
-
             <Field label="Causas">
               <textarea value={form.causes} disabled={isView} rows={3}
                 onChange={e => set('causes', e.target.value)}
@@ -262,7 +238,6 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
                 placeholder="Describa las acciones a implementar..."
                 className="w-full p-3 border border-gray-300 rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300" />
             </Field>
-
             <div className="grid grid-cols-2 gap-4">
               <Field label="Logros esperados">
                 <textarea value={form.expected_results} disabled={isView} rows={2}
@@ -277,20 +252,16 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
                   className="w-full p-3 border border-gray-300 rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300" />
               </Field>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <Field label="Responsable" required>
                 <select value={form.responsible_id} disabled={isView}
                   onChange={e => set('responsible_id', e.target.value)}
                   className={`w-full p-2 border rounded text-sm ${errors.responsible_id ? 'border-red-400' : 'border-gray-300'}`}>
                   <option value="">Seleccionar responsable...</option>
-                  {profiles.map(p => (
-                    <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
-                  ))}
+                  {profiles.map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}
                 </select>
                 {errors.responsible_id && <p className="text-red-500 text-xs">{errors.responsible_id}</p>}
               </Field>
-
               <Field label="Fecha propuesta de verificación" required>
                 <Input type="date" value={form.proposed_date} disabled={isView}
                   onChange={e => set('proposed_date', e.target.value)}
@@ -308,14 +279,12 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
                 placeholder="¿Cómo se verificará la efectividad?..."
                 className="w-full p-3 border border-gray-300 rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-300" />
             </Field>
-
             <Field label="Hallazgo de verificación">
               <textarea value={form.verification_finding} disabled={isView} rows={2}
                 onChange={e => set('verification_finding', e.target.value)}
                 placeholder="Resultado de la verificación realizada..."
                 className="w-full p-3 border border-gray-300 rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-300" />
             </Field>
-
             <div className="grid grid-cols-2 gap-4">
               <Field label="Fecha verificación">
                 <Input type="date" value={form.verification_date} disabled={isView}
@@ -328,7 +297,7 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
             </div>
           </Section>
 
-          {/* Info cierre solo en vista */}
+          {/* Info cierre en modo vista */}
           {isView && accion?.closure_approved && (
             <Section title="🔒 Cierre" color="#5c1a1a">
               <div className="flex gap-6">
@@ -339,17 +308,20 @@ export default function AccionMejoraModal({ isOpen, mode, accion, onClose, onSuc
                     {accion.closure_approved === 'SI' ? '✅ Cerrada' : '⏳ En seguimiento'}
                   </span>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Auditor</p>
-                  <p className="text-sm font-medium">{accion.auditor?.full_name || '-'}</p>
-                </div>
+                {accion.closure_reason && (
+                  <div className="flex-1">
+                    <p className="text-xs text-gray-500 mb-1">Razón del cierre</p>
+                    <p className="text-sm">{accion.closure_reason}</p>
+                  </div>
+                )}
               </div>
             </Section>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t flex justify-end gap-3" style={{ backgroundColor: '#f8fafb' }}>
+        {/* Footer fijo */}
+        <div className="flex-shrink-0 px-6 py-4 border-t rounded-b-xl flex justify-end gap-3"
+          style={{ backgroundColor: '#f8fafb' }}>
           <Button variant="outline" onClick={onClose} disabled={saving}>
             {isView ? 'Cerrar' : 'Cancelar'}
           </Button>

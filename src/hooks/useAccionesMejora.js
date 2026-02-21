@@ -14,8 +14,8 @@ export const getTrafficLight = (proposedDate, isClosed = false) => {
   const diffDays = Math.ceil((proposed - today) / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0)  return { color: 'red',    label: `Vencida (${Math.abs(diffDays)}d)` };
-  if (diffDays <= 7) return { color: 'yellow', label: `Vence en ${diffDays}d` };
-  return               { color: 'green',  label: 'Vigente' };
+  if (diffDays <= 7) return { color: 'yellow',  label: `Vence en ${diffDays}d` };
+  return               { color: 'green',   label: 'Vigente' };
 };
 
 // ── Helper: obtener emails de gerencia ────────────────────────────────────────
@@ -28,14 +28,19 @@ const getGerenciaEmails = async () => {
   return data || [];
 };
 
-// ── Helper: enviar email silencioso ──────────────────────────────────────────
+// ── Helper: enviar email silencioso (no rompe el flujo si falla) ──────────────
 const sendEmail = async (to, type, data) => {
   try {
-    await supabase.functions.invoke('send-document-notification', {
+    const { error } = await supabase.functions.invoke('send-email', {
       body: { type, to, data },
     });
-    console.log(`📧 Email [${type}] enviado a: ${to}`);
+    if (error) {
+      console.warn(`⚠️ Email [${type}] falló para ${to}:`, error.message);
+    } else {
+      console.log(`📧 Email [${type}] enviado a: ${to}`);
+    }
   } catch (err) {
+    // Error silencioso — no interrumpe el flujo principal
     console.warn(`⚠️ Email no enviado a ${to}:`, err.message);
   }
 };
@@ -105,8 +110,49 @@ export function useAccionesMejora() {
         .single();
 
       if (insertError) throw insertError;
+
+      // ── Emails de notificación al crear ────────────────────────────
+      // Obtener datos del responsable
+      let responsibleEmail = null;
+      let responsibleName  = '—';
+
+      if (formData.responsible_id) {
+        const { data: resp } = await supabase
+          .from('profile')
+          .select('email, full_name')
+          .eq('id', formData.responsible_id)
+          .single();
+        responsibleEmail = resp?.email     || null;
+        responsibleName  = resp?.full_name || '—';
+      }
+
+      const emailData = {
+        consecutive:      data.consecutive                 || '—',
+        finding:          formData.finding_description     || '—',
+        responsible_name: responsibleName,
+        created_by_name:  profile?.full_name               || '—',
+        proposed_date:    formData.proposed_date
+          ? new Date(formData.proposed_date + 'T00:00:00')
+              .toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          : 'Sin fecha',
+      };
+
+      // Email al responsable
+      if (responsibleEmail) {
+        await sendEmail(responsibleEmail, 'accion_mejora_creacion', emailData);
+      }
+
+      // Email a gerencia (sin duplicar si gerencia ES el responsable)
+      const gerencia = await getGerenciaEmails();
+      for (const g of gerencia) {
+        if (g.email !== responsibleEmail) {
+          await sendEmail(g.email, 'accion_mejora_creacion', emailData);
+        }
+      }
+
       await fetchAcciones();
       return { success: true, data };
+
     } catch (err) {
       console.error('❌ Error creando acción:', err);
       return { success: false, error: err.message };
@@ -148,14 +194,14 @@ export function useAccionesMejora() {
   };
 
   // ── Cerrar acción ─────────────────────────────────────────────────────────
-  //  'completed'        → SI: archiva + email a responsable y gerencia
-  //  'pending_solution' → NO: NO archiva, solo nota + email a responsable y gerencia
+  //  'completed'        → SI: archiva + email
+  //  'pending_solution' → NO: deja abierta + email
   const closeAccion = async (accionId, { closure_type, closure_reason }) => {
     try {
       const accion = acciones.find(a => a.id === accionId);
 
       if (closure_type === 'completed') {
-        // ── Cierre definitivo: archivar ──────────────────────────────────
+        // ── Cierre definitivo: archivar ──────────────────────────────
         const { error: updateError } = await supabase
           .from('improvement_action')
           .update({
@@ -173,7 +219,7 @@ export function useAccionesMejora() {
         if (updateError) throw updateError;
 
       } else {
-        // ── Seguimiento pendiente: NO archivar ───────────────────────────
+        // ── Seguimiento pendiente: NO archivar ───────────────────────
         const { error: updateError } = await supabase
           .from('improvement_action')
           .update({
@@ -197,7 +243,8 @@ export function useAccionesMejora() {
                           ? 'Cierre definitivo ✅'
                           : 'En espera de solución 🕐',
         proposed_date:    accion?.proposed_date
-          ? new Date(accion.proposed_date).toLocaleDateString('es-CO')
+          ? new Date(accion.proposed_date + 'T00:00:00')
+              .toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
           : 'Sin fecha',
       };
 
@@ -210,7 +257,7 @@ export function useAccionesMejora() {
         await sendEmail(accion.responsible_email, emailType, emailData);
       }
 
-      // ── Email a gerencia (sin duplicar si ya es responsable) ─────────
+      // ── Email a gerencia (sin duplicar) ──────────────────────────────
       const gerencia = await getGerenciaEmails();
       for (const g of gerencia) {
         if (g.email !== accion?.responsible_email) {

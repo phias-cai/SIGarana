@@ -112,7 +112,10 @@ function Semaforo({ proposedDate, isClosed }) {
 export default function AccionesMejoraManager({ onBack }) {
   const { user, profile } = useAuth();
   const role      = profile?.role;
-  const canManage = ['admin', 'gerencia'].includes(role);
+  // ✅ Cambiar por esto
+const { hasPermission } = useAuth();
+const canManage = ['admin', 'gerencia'].includes(role) || 
+                  hasPermission('auditorias:acciones_mejora:close');
 
   const [exporting, setExporting] = useState(false);
 
